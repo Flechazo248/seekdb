@@ -1,0 +1,50 @@
+name: Agent Compile
+
+on:
+  push:
+    branches: [ "feature/ai-function-enhancement" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - name: Free Disk Space
+        uses: insightsengineering/disk-space-reclaimer@v1
+        with:
+          tools-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+          docker-images: true
+
+      - uses: actions/checkout@v4
+
+      - name: Install ubuntu environment
+        shell: bash
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y git wget rpm rpm2cpio cpio make build-essential binutils m4 libtool-bin libncurses5 python3
+
+      - name: Setup Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: Build release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f ~/.bashrc ]]; then
+            source ~/.bashrc
+          fi
+          ./build.sh release --init
+          echo "$GITHUB_WORKSPACE/deps/3rd/usr/local/oceanbase/devtools/bin" >> "$GITHUB_PATH"
+          cd build_release
+          make -j4
+          test -x src/observer/seekdb
