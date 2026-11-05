@@ -90,3 +90,20 @@ jobs:
         shell: bash
         run: |
           python3 tools/deploy/mysql_test/test_suite/ai_function/include/ai_function_mock.py events 8000 || true
+
+      - name: Dump seekdb error context
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          WORK="$GITHUB_WORKSPACE/agent_work"
+          echo "=== workspace tree ==="
+          ls -la "$WORK" 2>/dev/null || true
+          find "$WORK" -maxdepth 6 -type f \( -name "*.log" -o -name "*.out" -o -name "*.reject" \) 2>/dev/null | head -30
+          echo "=== grep AI / error context ==="
+          grep -r -a -i -E "ai_function|ai_complete|ai_embed|Null value|NULL_VALUE|curl error|ollama" "$WORK" 2>/dev/null | tail -80 || true
+          echo "=== observer log tail ==="
+          for f in $(find "$WORK" -maxdepth 6 -type f -name "*.log" 2>/dev/null | head -6); do
+            echo "--- $f ---"
+            tail -150 "$f"
+          done
