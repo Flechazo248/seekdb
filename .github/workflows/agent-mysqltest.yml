@@ -37,6 +37,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git wget rpm rpm2cpio cpio make build-essential binutils m4 libtool-bin libncurses5 python3
 
+      - name: Cache deps
+        id: cache-deps
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-deps
+        with:
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-el9.x86_64-${{ hashFiles('deps/init/oceanbase.el9.x86_64.deps') }}
+          path: deps/3rd
+
       - name: Setup Rust
         uses: ./.github/actions/setup-rust
 

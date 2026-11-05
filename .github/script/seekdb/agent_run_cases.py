@@ -42,9 +42,9 @@ def main():
     runner = load_runner()
     args.base_dir = os.path.join(args.work_dir, "instance")
     args.work_dir = args.work_dir
-    args.seekdb = os.path.abspath(args.seekdb)
-    args.obclient = os.path.abspath(args.obclient)
-    args.mysqltest = os.path.abspath(args.mysqltest)
+    args.seekdb = Path(args.seekdb).resolve()
+    args.obclient = Path(args.obclient).resolve()
+    args.mysqltest = Path(args.mysqltest).resolve()
 
     deploy_dir = REPO_ROOT / "tools" / "deploy"
     sdb_script = RUNNER_PATH.with_name("sdb.py")
