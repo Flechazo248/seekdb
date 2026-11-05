@@ -154,6 +154,7 @@ SQL_PUBLIC_HEADER_ROOTS = [
     "session/ob_sql_session_mgr.h",
     "session/ob_system_variable.h",
     "session/ob_user_resource_mgr.h",
+    "table_function/file_sql_table_function.h",
     "table_function/table_function.h",
 ]
 
