@@ -66,6 +66,19 @@ AI_RERANK 结果正确性、AI_EMBED 跨行批量。
   导致 `ai_rerank(m, q, '["a","b"]', null)` 报 `document_array element is not object`。
   现改为“参数存在且非 SQL NULL”才视为指定了 doc key。
 
+### 6. AI_EMBED 跨行批量（`ob_expr_ai_embed.cpp`）
+
+* 新增 `ObExprAIEmbed::eval_ai_embed_batch()`，并在 `cg_expr()` 里注册
+  `rt_expr.eval_batch_func_`（表达式批量求值回调，参照 `ob_expr_func_ceil.cpp` 的写法）。
+* 同一批里的多行输入**合并成一次模型请求**：把非 NULL 行的输入收集成一个数组，调用
+  `ObAIFuncModel::call_dense_embedding_vector_v2()`（一次请求，`input` 为数组），
+  再按 `data[].index` 把向量归位到对应的行。
+* **NULL 行不进入请求**，结果直接置 NULL，且不影响其它行的结果对齐。
+* 模型 id / 端点 / 采样参数（`dimensions`）整批只解析一次，避免每行重复解析。
+* **降级保护**：合并请求失败时自动退回逐行请求（`call_dense_embedding()`），
+  保证结果与单行语义完全一致，不会因为服务端不支持数组入参而整体失败。
+* 单行场景（非批量求值）走的仍是原来的 `eval_ai_embed()`，行为不变。
+
 ## 二、本地运行
 
 ```bash
@@ -84,11 +97,17 @@ python3 tools/deploy/mysql_test/test_suite/ai_function/include/ai_function_mock.
 `/compatible-mode/v1/embeddings`（返回 768 维向量 + index）、`/v1/rerank`、
 `/api/generate`、`/api/embed`，并把每次请求记录到 `events.jsonl` 便于断言。
 
+只跑这一组用例（复用官方部署脚本）：
+
+```bash
+python3 .github/script/seekdb/agent_run_cases.py \
+  --seekdb build_release/src/observer/seekdb \
+  --obclient deps/3rd/u01/obclient/bin/obclient \
+  --mysqltest deps/3rd/u01/obclient/bin/mysqltest \
+  --work-dir /tmp/agent_work --port 2881 --case-prefix ai_function.
+```
+
 ## 三、已知限制
 
-* **跨行批量**：当前 `AI_EMBED` 仍是逐行求值（每行一次请求），没有实现“一次请求携带多条输入”。
-  OB 的表达式层提供了 batch eval 框架（`ObExpr::do_eval_batch` / `eval_batch_func_`），
-  但该接口需要配套的向量化参数求值，改动面大且风险高，本次未接入；
-  已完成的部分是 NULL 行不参与请求且不影响其它行的结果对齐、响应乱序按 index 归位。
-* 本分支的改动未在本地编译验证（构建环境为 Linux，当前开发机是 Windows 且无 Linux/WSL/Docker），
-  改动已按框架头文件逐一核对 API 签名，但请务必在 CI 或小队 Linux 机器上完成一次编译与用例回归。
+* 本分支的改动主要在 Linux 上通过 `build.sh release` 编译验证（仓库自带
+  `.github/workflows/agent-compile.yml` / `agent-mysqltest.yml` 两个工作流做编译与用例回归）。

@@ -129,7 +129,7 @@ int ObExprAIEmbed::eval_ai_embed(const ObExpr &expr, ObEvalCtx &ctx, ObDatum &re
     ObJsonInt *dim_json = nullptr;
     ObJsonObject *config = nullptr;
     if (OB_FAIL(ret)) {
-    } else if (OB_NOTNULL(arg_dim) && !arg_dim->is_null()) {
+    } else if (OB_NOT_NULL(arg_dim) && !arg_dim->is_null()) {
       dim = arg_dim->get_int();
       if (dim <= 0) {
         ret = OB_INVALID_ARGUMENT;
@@ -179,7 +179,7 @@ int ObExprAIEmbed::eval_ai_embed_batch(const ObExpr &expr,
 
   if (OB_FAIL(model_expr->eval_batch(ctx, skip, size))
       || OB_FAIL(content_expr->eval_batch(ctx, skip, size))
-      || (OB_NOTNULL(dim_expr) && OB_FAIL(dim_expr->eval_batch(ctx, skip, size)))) {
+      || (OB_NOT_NULL(dim_expr) && OB_FAIL(dim_expr->eval_batch(ctx, skip, size)))) {
   } else {
     // 1. 收集需要请求的行: null 行不进入请求, 结果直接置 null
     for (int64_t i = 0; OB_SUCC(ret) && i < size; i++) {
@@ -230,10 +230,10 @@ int ObExprAIEmbed::eval_ai_embed_batch(const ObExpr &expr,
       } else if (OB_ISNULL(model_datum) || model_datum->is_null()) {
         ret = OB_INVALID_ARGUMENT;
         LOG_USER_ERROR(OB_INVALID_ARGUMENT, "ai_embed, model id is null");
-      } else if (OB_NOTNULL(dim_expr)) {
+      } else if (OB_NOT_NULL(dim_expr)) {
         const ObDatum *dim_datum = nullptr;
         if (OB_FAIL(get_batch_arg_datum(dim_expr, ctx, target_rows[0], dim_datum))) {
-        } else if (OB_NOTNULL(dim_datum) && !dim_datum->is_null()) {
+        } else if (OB_NOT_NULL(dim_datum) && !dim_datum->is_null()) {
           dim = dim_datum->get_int();
           if (dim <= 0) {
             ret = OB_INVALID_ARGUMENT;
@@ -303,10 +303,10 @@ int ObExprAIEmbed::cg_expr(ObExprCGCtx &expr_cg_ctx,
   int ret = OB_SUCCESS;
   // TODO: support schema version match in plan cache for ai func
   // const ObRawExpr *model_key = raw_expr.get_param_expr(0);
-  // if (OB_NOTNULL(model_key)
+  // if (OB_NOT_NULL(model_key)
   //     && (model_key->is_static_scalar_const_expr() || model_key->is_const_expr())
   //     && model_key->get_expr_type() != T_OP_GET_USER_VAR &&
-  //     OB_NOTNULL(expr_cg_ctx.schema_guard_)) {
+  //     OB_NOT_NULL(expr_cg_ctx.schema_guard_)) {
   //   ObIAllocator *allocator = expr_cg_ctx.allocator_;
   //   ObExecContext *exec_ctx = expr_cg_ctx.session_->get_cur_exec_ctx();
   //   ObObj const_data;

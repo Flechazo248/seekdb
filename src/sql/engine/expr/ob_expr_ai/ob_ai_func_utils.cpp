@@ -259,7 +259,7 @@ int ObOpenAIUtils::ObOpenAIEmbed::parse_output(common::ObIAllocator &allocator,
             // 按响应中的 index 归位, 兼容服务端乱序返回
             int64_t index = i;
             ObJsonNode *index_node = embedding_obj->get_value("index");
-            if (OB_NOTNULL(index_node)) {
+            if (OB_NOT_NULL(index_node)) {
               if (index_node->json_type() != ObJsonNodeType::J_INT) {
                 ret = OB_INVALID_DATA;
               } else {
@@ -270,7 +270,7 @@ int ObOpenAIUtils::ObOpenAIEmbed::parse_output(common::ObIAllocator &allocator,
               if (index < 0 || static_cast<uint64_t>(index) >= data_count) {
                 // index 越界, 退化为按响应原顺序输出
                 reordered = false;
-              } else if (OB_NOTNULL(embedding_nodes[index])) {
+              } else if (OB_NOT_NULL(embedding_nodes[index])) {
                 // index 重复, 退化为按响应原顺序输出
                 reordered = false;
               } else {
@@ -292,7 +292,7 @@ int ObOpenAIUtils::ObOpenAIEmbed::parse_output(common::ObIAllocator &allocator,
         // index 信息不可靠时按响应原顺序输出, 保证与请求顺序一致
         for (int64_t i = 0; OB_SUCC(ret) && i < static_cast<int64_t>(data_count); i++) {
           ObJsonNode *item = data_array->get_value(i);
-          ObJsonNode *embedding = OB_NOTNULL(item)
+          ObJsonNode *embedding = OB_NOT_NULL(item)
                                   ? static_cast<ObJsonObject *>(item)->get_value("embedding") : nullptr;
           if (OB_ISNULL(embedding)) {
             ret = OB_INVALID_DATA;
@@ -315,7 +315,7 @@ static int copy_ollama_top_config(common::ObIAllocator &allocator,
   int ret = OB_SUCCESS;
   // ollama 原生协议中以下参数位于请求体顶层, 其余 config 键放入 options
   static const char *TOP_KEYS[] = {"format", "keep_alive", "template", "raw"};
-  if (OB_NOTNULL(config)) {
+  if (OB_NOT_NULL(config)) {
     int64_t count = static_cast<int64_t>(config->element_count());
     for (int64_t i = 0; OB_SUCC(ret) && i < count; i++) {
       ObString key;
@@ -348,7 +348,7 @@ static int build_ollama_options(common::ObIAllocator &allocator,
   } else {
     // ollama 原生协议把采样参数放在 options 下
     static const char *OPTION_KEYS[] = {"temperature", "top_p", "top_k", "seed", "min_p"};
-    if (OB_NOTNULL(config)) {
+    if (OB_NOT_NULL(config)) {
       int64_t count = static_cast<int64_t>(config->element_count());
       for (int64_t i = 0; OB_SUCC(ret) && i < count; i++) {
         ObString key;
@@ -369,7 +369,7 @@ static int build_ollama_options(common::ObIAllocator &allocator,
       }
       // max_tokens 对应 ollama 的 num_predict
       ObJsonNode *max_tokens = config->get_value("max_tokens");
-      if (OB_NOTNULL(max_tokens) && OB_FAIL(options_obj->add("num_predict", max_tokens))) {
+      if (OB_NOT_NULL(max_tokens) && OB_FAIL(options_obj->add("num_predict", max_tokens))) {
       }
     }
     options = options_obj;
