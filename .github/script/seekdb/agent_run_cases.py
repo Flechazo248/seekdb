@@ -69,6 +69,12 @@ def main():
             if code != 0:
                 failed.append(case.name)
     finally:
+        # 实例销毁前先把 observer 日志抓出来, 便于定位表达式求值失败原因
+        try:
+            runner.copy_instance_diagnostics(Path(args.base_dir), work_dir / "diag")
+            print("instance diagnostics saved to {}".format(work_dir / "diag"), flush=True)
+        except Exception as exc:
+            print("failed to copy instance diagnostics: {}".format(exc), flush=True)
         runner.destroy_instance(sdb_script, args.base_dir, REPO_ROOT, check=False)
 
     if failed:

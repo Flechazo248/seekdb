@@ -372,7 +372,10 @@ static int build_ollama_options(common::ObIAllocator &allocator,
       if (OB_NOT_NULL(max_tokens) && OB_FAIL(options_obj->add("num_predict", max_tokens))) {
       }
     }
-    options = options_obj;
+    // 没有采样参数时不下发空的 options, 避免请求体里出现空对象
+    if (options_obj->element_count() > 0) {
+      options = options_obj;
+    }
   }
   return ret;
 }
@@ -424,7 +427,7 @@ int ObOllamaUtils::ObOllamaComplete::get_body(common::ObIAllocator &allocator,
     } else if (!prompt.empty() && OB_FAIL(body_obj->add("system", prompt_str))) {
     } else if (OB_FAIL(copy_ollama_top_config(allocator, config, body_obj))) {
     } else if (OB_FAIL(build_ollama_options(allocator, config, options_obj))) {
-    } else if (OB_FAIL(body_obj->add("options", options_obj))) {
+    } else if (OB_NOT_NULL(options_obj) && OB_FAIL(body_obj->add("options", options_obj))) {
     } else if (OB_FAIL(ObAIFuncJsonUtils::get_json_boolean(allocator, false, stream_bool))) {
     } else if (OB_FAIL(body_obj->add("stream", stream_bool))) {
     } else {
@@ -502,7 +505,7 @@ int ObOllamaUtils::ObOllamaEmbed::get_body(common::ObIAllocator &allocator,
     } else if (OB_FAIL(body_obj->add("input", input_array))) {
     } else if (OB_FAIL(copy_ollama_top_config(allocator, config, body_obj))) {
     } else if (OB_FAIL(build_ollama_options(allocator, config, options_obj))) {
-    } else if (OB_FAIL(body_obj->add("options", options_obj))) {
+    } else if (OB_NOT_NULL(options_obj) && OB_FAIL(body_obj->add("options", options_obj))) {
     } else {
       body = body_obj;
     }
