@@ -68,5 +68,13 @@ int file_sql_list_files(const ObString &pattern, common::ObIAllocator &allocator
 // 会话变量 enable_file_sql 未打开时返回错误
 int file_sql_check_enabled(ObSQLSessionInfo *session_info);
 
+// 把字符串复制到分配器
+int file_sql_copy_to_allocator(common::ObIAllocator &allocator, const common::ObString &src,
+                               common::ObString &dst);
+
+// 创建文件表扫描
+int create_file_sql_scan(const TableFunctionScanContext &context, FileSqlFormat format,
+                         ITableFunctionScan *&scan);
+
 } // namespace sql
 } // namespace oceanbase

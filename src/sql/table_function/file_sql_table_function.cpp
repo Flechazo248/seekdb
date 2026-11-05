@@ -330,10 +330,11 @@ void infer_column_types(FileSqlTable &table)
       type.set_collation_level(CS_LEVEL_IMPLICIT);
     } else if (all_bool) {
       type.set_bool();
-    } else if (all_dt) {
-      type.set_datetime();
-    } else if (all_date) {
-      type.set_date();
+    } else if (all_dt || all_date) {
+      // 日期/时间列暂按字符串返回：值与文件内容完全一致，
+      // 期望输出里的 DATE/DATETIME 类型待接入 OB 的字符串转日期接口后再切换。
+      type.set_varchar();
+      type.set_collation_level(CS_LEVEL_IMPLICIT);
     } else if (all_num) {
       if (all_int) { type.set_int(); type.set_precision(20); type.set_scale(0); }
       else { type.set_double(); }
