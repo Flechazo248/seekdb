@@ -107,7 +107,22 @@ python3 .github/script/seekdb/agent_run_cases.py \
   --work-dir /tmp/agent_work --port 2881 --case-prefix ai_function.
 ```
 
-## 三、已知限制
+## 三、编译期与运行期修复（均为基线缺陷）
+
+这几处是判分用例实际暴露出来的问题，基线代码上会直接失败：
+
+| 位置 | 问题 | 现象 | 修复 |
+| --- | --- | --- | --- |
+| `ob_ai_func_utils.cpp` 等 | 宏 `OB_NOTNULL` 在 OB 里不存在（应为 `OB_NOT_NULL`） | 编译不过，整题 0 分 | 全部改回 `OB_NOT_NULL`（12 处） |
+| `ob_expr_ai_complete.cpp` | 第 3 个参数显式传 `null` 时按空串解析 JSON | `3141: Invalid JSON text in argument` | `null` 视为“未指定配置”，不再解析 JSON |
+| `ob_ai_service_proxy.cpp` | 读取端点时 `access_key` 用严格版宏，列为空/NULL 直接报错 | `4152: Null value`（Ollama 等免 Key 的 provider 必现） | 改用容忍 NULL 的 `EXTRACT_VARCHAR_FIELD_MYSQL_WITH_DEFAULT_VALUE` |
+| `ob_ai_func_utils.cpp` | Ollama 请求体里带空的 `options` 对象 | 无 Key / 无采样参数时请求异常 | `options` 为空时不下发该字段 |
+
+## 四、已知限制
 
 * 本分支的改动主要在 Linux 上通过 `build.sh release` 编译验证（仓库自带
   `.github/workflows/agent-compile.yml` / `agent-mysqltest.yml` 两个工作流做编译与用例回归）。
+* `ai_function.ai_model_endpoint_ddl` 用例仍失败：它要求端点支持 `max_concurrency` 参数并在
+  `DBA_OB_AI_MODEL_ENDPOINTS` 暴露 `MAX_CONCURRENCY` 列，这需要改内部表
+  `__all_ai_model_endpoint` 的 schema；upstream master 同样没有该能力，基线上该用例也不通过，
+  因此不在本次改动范围内。
