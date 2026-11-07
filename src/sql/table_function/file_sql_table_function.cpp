@@ -26,6 +26,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "common/timezone/ob_time_convert.h"
+
 namespace oceanbase
 {
 namespace sql
@@ -36,6 +38,14 @@ namespace
 {
 
 bool is_space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
+
+// 比较两个字段名是否相同
+bool same_key(const ObString &a, const ObString &b)
+{
+  if (a.length() != b.length()) { return false; }
+  if (a.length() == 0) { return true; }
+  return 0 == memcmp(a.ptr(), b.ptr(), a.length());
+}
 
 bool is_all_digits(const ObString &s)
 {
@@ -92,7 +102,7 @@ bool is_date(const ObString &s)
 
 bool is_datetime(const ObString &s)
 {
-  // YYYY-MM-DD[ T]HH:MM:SS
+  // YYYY-MM-DD[ T]HH:MM:SS[.ffffff]
   if (s.length() < 19) { return false; }
   if (!is_date(ObString(s.length() - 9, s.ptr()))) { return false; }
   const char sep = s.ptr()[10];
@@ -107,7 +117,68 @@ bool is_datetime(const ObString &s)
       return false;
     }
   }
+  // 可选的小数部分
+  if (s.length() > 19) {
+    if (s.ptr()[19] != '.') { return false; }
+    if (s.length() == 20) { return false; }
+    for (int64_t i = 20; i < s.length(); ++i) {
+      if (!isdigit(static_cast<unsigned char>(s.ptr()[i]))) { return false; }
+    }
+  }
   return true;
+}
+
+// 解析十进制数字文本
+int parse_digits(const ObString &value, int64_t &result)
+{
+  int ret = OB_SUCCESS;
+  result = 0;
+  for (int64_t i = 0; OB_SUCC(ret) && i < value.length(); ++i) {
+    const char c = value.ptr()[i];
+    if (!isdigit(static_cast<unsigned char>(c))) {
+      ret = OB_ERR_UNEXPECTED;
+    } else {
+      result = result * 10 + (c - '0');
+    }
+  }
+  return ret;
+}
+
+// 解析 YYYY-MM-DD 中的年月日
+int parse_date_parts(const ObString &value, int64_t &year, int64_t &month, int64_t &day)
+{
+  int ret = OB_SUCCESS;
+  if (!is_date(value)) {
+    ret = OB_ERR_UNEXPECTED;
+    LOG_WARN("invalid date text", K(ret), K(value));
+  } else if (OB_FAIL(parse_digits(ObString(4, value.ptr()), year))
+             || OB_FAIL(parse_digits(ObString(2, value.ptr() + 5), month))
+             || OB_FAIL(parse_digits(ObString(2, value.ptr() + 8), day))) {
+    LOG_WARN("failed to parse date text", K(ret), K(value));
+  }
+  return ret;
+}
+
+// 解析 YYYY-MM-DD HH:MM:SS[.ffffff] 中的时分秒与微秒
+int parse_time_parts(const ObString &value, int64_t &hour, int64_t &minute, int64_t &second, int64_t &usec)
+{
+  int ret = OB_SUCCESS;
+  usec = 0;
+  if (OB_FAIL(parse_digits(ObString(2, value.ptr() + 11), hour))
+      || OB_FAIL(parse_digits(ObString(2, value.ptr() + 14), minute))
+      || OB_FAIL(parse_digits(ObString(2, value.ptr() + 17), second))) {
+    ret = OB_ERR_UNEXPECTED;
+    LOG_WARN("failed to parse datetime text", K(ret), K(value));
+  } else if (value.length() > 20) {
+    int64_t digits = value.length() - 20;
+    if (digits > 6) { digits = 6; }
+    if (OB_FAIL(parse_digits(ObString(digits, value.ptr() + 20), usec))) {
+      ret = OB_ERR_UNEXPECTED;
+    } else {
+      for (int64_t i = digits; i < 6; ++i) { usec *= 10; }
+    }
+  }
+  return ret;
 }
 
 int copy_string(ObIAllocator &allocator, const ObString &src, ObString &dst)
@@ -332,11 +403,14 @@ void infer_column_types(FileSqlTable &table)
       type.set_obj_type(ObTinyIntType);
       type.set_precision(1);
       type.set_scale(0);
-    } else if (all_dt || all_date) {
-      // 日期/时间列暂按字符串返回：值与文件内容完全一致，
-      // 期望输出里的 DATE/DATETIME 类型待接入 OB 的字符串转日期接口后再切换。
-      type.set_obj_type(ObVarcharType);
-      type.set_collation_level(CS_LEVEL_IMPLICIT);
+    } else if (all_dt) {
+      type.set_obj_type(ObDateTimeType);
+      type.set_precision(19);
+      type.set_scale(0);
+    } else if (all_date) {
+      type.set_obj_type(ObDateType);
+      type.set_precision(10);
+      type.set_scale(0);
     } else if (all_num) {
       if (all_int) { type.set_obj_type(ObIntType); type.set_precision(20); type.set_scale(0); }
       else { type.set_obj_type(ObDoubleType); }
@@ -347,7 +421,8 @@ void infer_column_types(FileSqlTable &table)
     table.columns_.at(c).type_ = type;
     table.columns_.at(c).nullable_ = nullable;
     if (all_bool) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_BOOL; }
-    else if ((all_dt || all_date)) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_VARCHAR; }
+    else if (all_dt) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_DATETIME; }
+    else if (all_date) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_DATE; }
     else if (all_num && all_int) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_INT; }
     else if (all_num) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_DOUBLE; }
     else { table.columns_.at(c).kind_ = FILE_SQL_VALUE_VARCHAR; }
@@ -373,6 +448,47 @@ int file_sql_parse_format(const ObString &format_name, FileSqlFormat &format)
     ret = OB_ERR_PARSE_SQL;
     LOG_USER_ERROR(OB_ERR_PARSE_SQL, "unsupported file format",
                  format_name.length(), format_name.ptr(), 1);
+  }
+  return ret;
+}
+
+int file_sql_parse_date(const ObString &value, int32_t &date_value)
+{
+  int ret = OB_SUCCESS;
+  int64_t year = 0;
+  int64_t month = 0;
+  int64_t day = 0;
+  if (OB_FAIL(parse_date_parts(value, year, month, day))) {
+  } else if (month < 1 || month > 12) {
+    ret = OB_ERR_UNEXPECTED;
+    LOG_WARN("invalid month in date text", K(ret), K(value));
+  } else if (day < 1 || day > ObTimeConverter::get_days_of_month(static_cast<int32_t>(year),
+                                                                 static_cast<int32_t>(month))) {
+    ret = OB_ERR_UNEXPECTED;
+    LOG_WARN("invalid day in date text", K(ret), K(value));
+  } else {
+    date_value = ObTimeConverter::calc_date(year, month, day);
+  }
+  return ret;
+}
+
+int file_sql_parse_datetime(const ObString &value, int64_t &datetime_value)
+{
+  int ret = OB_SUCCESS;
+  int32_t date_value = 0;
+  int64_t hour = 0;
+  int64_t minute = 0;
+  int64_t second = 0;
+  int64_t usec = 0;
+  if (OB_FAIL(file_sql_parse_date(ObString(10, value.ptr()), date_value))) {
+  } else if (OB_FAIL(parse_time_parts(value, hour, minute, second, usec))) {
+  } else if (hour > 23 || minute > 59 || second > 59) {
+    ret = OB_ERR_UNEXPECTED;
+    LOG_WARN("invalid time in datetime text", K(ret), K(value));
+  } else {
+    const int64_t usecs_of_day = 24 * 60 * 60 * 1000000;
+    const int64_t time_value = (hour * 60 * 60 + minute * 60 + second) * 1000000 + usec;
+    datetime_value = static_cast<int64_t>(date_value) * usecs_of_day + time_value;
   }
   return ret;
 }
@@ -456,7 +572,8 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
           column.nullable_ = true;
           if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
         }
-        if (OB_SUCC(ret) && !sample_only) {
+        if (OB_SUCC(ret)) {
+          // 数据行始终参与类型推断，保证绑定期与扫描期推断出的列类型一致
           for (int64_t r = 1; OB_SUCC(ret) && r < lines.count(); ++r) {
             ObArray<ObString> values;
             if (OB_FAIL(parse_csv_line(lines.at(r), allocator, values))) {
@@ -485,8 +602,7 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
       ret = OB_ERR_UNEXPECTED;
     } else {
       ObArray<ObString> keys;
-      ObArray<ObString> values;
-      ObArray<bool> nulls;
+      // 第一遍：收集所有出现过的 key，列顺序按首次出现
       for (int64_t r = 0; OB_SUCC(ret) && r < lines.count(); ++r) {
         ObArray<ObString> row_keys;
         ObArray<ObString> row_values;
@@ -495,33 +611,39 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
           ret = OB_ERR_UNEXPECTED;
           break;
         }
-        if (!sample_only) {
+        for (int64_t k = 0; OB_SUCC(ret) && k < row_keys.count(); ++k) {
+          bool found = false;
+          for (int64_t j = 0; j < keys.count(); ++j) {
+            if (same_key(keys.at(j), row_keys.at(k))) { found = true; break; }
+          }
+          if (!found && OB_FAIL(keys.push_back(row_keys.at(k)))) { ret = OB_ERR_UNEXPECTED; }
+        }
+      }
+      // 第二遍：按统一的列顺序生成数据行，缺失的字段为 NULL
+      if (OB_SUCC(ret)) {
+        for (int64_t r = 0; OB_SUCC(ret) && r < lines.count(); ++r) {
+          ObArray<ObString> row_keys;
+          ObArray<ObString> row_values;
+          ObArray<bool> row_nulls;
+          if (OB_FAIL(parse_jsonl_line(lines.at(r), allocator, row_keys, row_values, row_nulls))) {
+            ret = OB_ERR_UNEXPECTED;
+            break;
+          }
           FileSqlRow row;
-          for (int64_t k = 0; OB_SUCC(ret) && k < row_keys.count(); ++k) {
-            // 记录每行的 key/value/null，并保证列顺序按首次出现
-            int64_t idx = -1;
-            for (int64_t j = 0; j < keys.count(); ++j) {
-              if (0 == strcmp(keys.at(j).ptr(), row_keys.at(k).ptr())) { idx = j; break; }
+          for (int64_t c = 0; OB_SUCC(ret) && c < keys.count(); ++c) {
+            ObString value;
+            bool is_null = true;
+            for (int64_t k = 0; k < row_keys.count(); ++k) {
+              if (same_key(keys.at(c), row_keys.at(k))) {
+                value = row_values.at(k);
+                is_null = row_nulls.at(k);
+                break;
+              }
             }
-            if (idx < 0) {
-              if (OB_FAIL(keys.push_back(row_keys.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
-              if (OB_FAIL(values.push_back(row_values.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
-              if (OB_FAIL(nulls.push_back(row_nulls.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
-              idx = keys.count() - 1;
-            } else {
-              values.at(idx) = row_values.at(k);
-              nulls.at(idx) = row_nulls.at(k);
-            }
+            if (OB_FAIL(row.values_.push_back(value))) { ret = OB_ERR_UNEXPECTED; }
+            else if (OB_FAIL(row.nulls_.push_back(is_null))) { ret = OB_ERR_UNEXPECTED; }
           }
-          if (OB_SUCC(ret)) {
-            // 按列顺序输出该行的值
-            FileSqlRow row;
-            for (int64_t j = 0; OB_SUCC(ret) && j < keys.count(); ++j) {
-              if (OB_FAIL(row.values_.push_back(values.at(j)))) { ret = OB_ERR_UNEXPECTED; }
-              else if (OB_FAIL(row.nulls_.push_back(nulls.at(j)))) { ret = OB_ERR_UNEXPECTED; }
-            }
-            if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_ERR_UNEXPECTED; }
-          }
+          if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_ERR_UNEXPECTED; }
         }
       }
       if (OB_SUCC(ret)) {
@@ -533,11 +655,20 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
         }
       }
     }
+  } else if (format == FILE_SQL_FORMAT_GLOB) {
+    // glob 只返回一列文件名
+    FileSqlColumn column;
+    column.name_ = ObString::make_string("file");
+    column.type_.set_obj_type(ObVarcharType);
+    column.type_.set_collation_level(CS_LEVEL_IMPLICIT);
+    column.nullable_ = false;
+    if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
   } else {
     ret = OB_NOT_SUPPORTED;
   }
   if (OB_SUCC(ret) && format != FILE_SQL_FORMAT_GLOB) {
     infer_column_types(table);
+    if (sample_only) { table.rows_.reuse(); }
   }
   return ret;
 }

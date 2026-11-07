@@ -41,6 +41,8 @@ enum FileSqlValueKind
   FILE_SQL_VALUE_DOUBLE = 1,
   FILE_SQL_VALUE_BOOL = 2,
   FILE_SQL_VALUE_VARCHAR = 3,
+  FILE_SQL_VALUE_DATE = 4,
+  FILE_SQL_VALUE_DATETIME = 5,
 };
 
 struct FileSqlColumn
@@ -66,6 +68,12 @@ struct FileSqlTable
 
 // 解析格式名(csv/json/parquet/glob)，失败返回 OB_ERR_PARSE_ERROR
 int file_sql_parse_format(const ObString &format_name, FileSqlFormat &format);
+
+// 解析 YYYY-MM-DD 文本，返回 OB 的日期内部表示（1970-01-01 起的天数）
+int file_sql_parse_date(const ObString &value, int32_t &date_value);
+
+// 解析 YYYY-MM-DD[ T]HH:MM:SS[.ffffff] 文本，返回 OB 的 datetime 内部表示（微秒）
+int file_sql_parse_datetime(const ObString &value, int64_t &datetime_value);
 
 // 读取文件并推断列结构（sample_only=true 时只取列，不取数据行）
 int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,

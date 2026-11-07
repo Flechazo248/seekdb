@@ -3590,6 +3590,23 @@ int ObDMLResolver::bind_fixed_table_function(const TableFunctionCall &call, Tabl
   return ret;
 }
 
+// 解析整数字面量，兼容 -1 这类带负号的写法
+static bool parse_file_sql_int_literal(const ParseNode *node, int64_t &value)
+{
+  bool parsed = false;
+  if (node != nullptr) {
+    if (node->type_ == T_INT || node->type_ == T_NUMBER) {
+      value = node->value_;
+      parsed = true;
+    } else if (node->type_ == T_OP_NEG && node->num_child_ == 1 && node->children_[0] != nullptr
+               && (node->children_[0]->type_ == T_INT || node->children_[0]->type_ == T_NUMBER)) {
+      value = -node->children_[0]->value_;
+      parsed = true;
+    }
+  }
+  return parsed;
+}
+
 // 文件即数据库：read_csv / read_json / read_ndjson / read_parquet / glob
 int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, TableItem *&item)
 {
@@ -3620,7 +3637,9 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
         const ObString name(arg->children_[0]->str_len_, arg->children_[0]->str_value_);
         const ParseNode *value = arg->children_[1];
         if (0 == name.case_compare(ObString::make_string("sample_size"))) {
-          sample_size = (value->type_ == T_INT) ? value->value_ : 0;
+          int64_t literal_value = 0;
+          if (!parse_file_sql_int_literal(value, literal_value)) { literal_value = 0; }
+          sample_size = literal_value;
         } else if (0 == name.case_compare(ObString::make_string("format"))) {
           if (value->type_ == T_VARCHAR) {
             format_name.assign_ptr(value->str_value_, value->str_len_);
@@ -3633,7 +3652,27 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
       ret = OB_NOT_SUPPORTED;
       LOG_USER_ERROR(OB_NOT_SUPPORTED, "sample_size");
     }
+    // 未显式指定格式时，按表函数自身语义决定格式
     FileSqlFormat format = FILE_SQL_FORMAT_CSV;
+    switch (call.descriptor_->id_) {
+      case READ_PARQUET_FUNCTION_ID: {
+        format = FILE_SQL_FORMAT_PARQUET;
+        break;
+      }
+      case READ_JSON_FUNCTION_ID:
+      case READ_NDJSON_FUNCTION_ID: {
+        format = FILE_SQL_FORMAT_JSONL;
+        break;
+      }
+      case GLOB_FUNCTION_ID: {
+        format = FILE_SQL_FORMAT_GLOB;
+        break;
+      }
+      default: {
+        format = FILE_SQL_FORMAT_CSV;
+        break;
+      }
+    }
     if (OB_SUCC(ret) && OB_FAIL(file_sql_parse_format(format_name, format))) {
     } else if (OB_SUCC(ret)) {
       FileSqlTable table;
@@ -3645,6 +3684,10 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
           ColumnItem *bound = nullptr;
           OZ (resolve_function_table_column_item(*item, column.type_.get_meta_type(),
                 column.type_.get_accuracy(), column.name_, OB_APP_MIN_COLUMN_ID + i, bound));
+          if (OB_SUCC(ret) && !column.nullable_ && bound != nullptr && bound->expr_ != nullptr) {
+            // 标记为非空列，DESCRIBE 时据此输出 null 列信息
+            bound->expr_->set_result_flag(NOT_NULL_FLAG);
+          }
         }
       }
     }

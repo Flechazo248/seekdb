@@ -43,6 +43,18 @@ int convert_value(ObIAllocator &allocator, const ObString &value, bool is_null,
   } else if (column.kind_ == FILE_SQL_VALUE_BOOL) {
     obj.set_bool(0 == value.case_compare(ObString::make_string("true"))
                  || 0 == value.case_compare(ObString::make_string("1")));
+  } else if (column.kind_ == FILE_SQL_VALUE_DATE) {
+    int32_t date_value = 0;
+    if (OB_FAIL(file_sql_parse_date(value, date_value))) {
+    } else {
+      obj.set_date(date_value);
+    }
+  } else if (column.kind_ == FILE_SQL_VALUE_DATETIME) {
+    int64_t datetime_value = 0;
+    if (OB_FAIL(file_sql_parse_datetime(value, datetime_value))) {
+    } else {
+      obj.set_datetime(datetime_value);
+    }
   } else {
     ObString copied;
     if (OB_FAIL(file_sql_copy_to_allocator(allocator, value, copied))) {
@@ -85,6 +97,8 @@ public:
     } else {
       format_ = FILE_SQL_FORMAT_CSV;
     }
+    // 扫描期需要产出的列数与执行期请求的列数保持一致
+    expected_columns_ = context_.column_exprs_.count();
   }
   ~FileSqlScan() override { (void) close(); }
 
