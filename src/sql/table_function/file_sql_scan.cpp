@@ -136,9 +136,8 @@ public:
       ret = OB_ITER_END;
     } else {
       const FileSqlRow &file_row = table_.rows_.at(row_index_);
-      if (cells_.reset()) {
-        ret = OB_ERR_UNEXPECTED;
-      } else {
+      cells_.reset();
+      {
         for (int64_t c = 0; OB_SUCC(ret) && c < table_.columns_.count(); ++c) {
           const ObString value = c < file_row.values_.count() ? file_row.values_.at(c) : ObString();
           const bool is_null = c < file_row.nulls_.count() ? file_row.nulls_.at(c) : true;
