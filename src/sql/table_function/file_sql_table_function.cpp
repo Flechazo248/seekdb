@@ -486,7 +486,7 @@ int file_sql_parse_datetime(const ObString &value, int64_t &datetime_value)
     ret = OB_ERR_UNEXPECTED;
     LOG_WARN("invalid time in datetime text", K(ret), K(value));
   } else {
-    const int64_t usecs_of_day = 24 * 60 * 60 * 1000000;
+    const int64_t usecs_of_day = 24LL * 60 * 60 * 1000000;
     const int64_t time_value = (hour * 60 * 60 + minute * 60 + second) * 1000000 + usec;
     datetime_value = static_cast<int64_t>(date_value) * usecs_of_day + time_value;
   }
