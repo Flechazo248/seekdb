@@ -2,7 +2,7 @@ name: Agent MySQLTest (ai_function)
 
 on:
   push:
-    branches: [ "feature/ai-function-enhancement" ]
+    branches: [ "feature/**" ]
   workflow_dispatch:
     inputs:
       case_prefix:

@@ -2,7 +2,7 @@ name: Agent Compile
 
 on:
   push:
-    branches: [ "feature/ai-function-enhancement" ]
+    branches: [ "feature/**" ]
   workflow_dispatch:
 
 permissions:
