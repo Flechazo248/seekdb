@@ -16,6 +16,7 @@
 
 #define USING_LOG_PREFIX SQL_RESV
 #include "sql/table_function/table_function.h"
+#include "sql/table_function/file_sql_table_function.h"
 #include "config_bridge.h"
 #include "ob_dml_resolver.h"
 #include "sql/resolver/dml/ob_view_table_resolver.h"
@@ -3585,6 +3586,68 @@ int ObDMLResolver::bind_fixed_table_function(const TableFunctionCall &call, Tabl
     OZ (resolve_function_table_column_item(*item, column.type_.get_meta_type(),
           column.type_.get_accuracy(), ObString::make_string(column.name_), column.id_, bound));
     if (OB_SUCC(ret) && !column.nullable_) { bound->expr_->set_result_flag(NOT_NULL_FLAG); }
+  }
+  return ret;
+}
+
+// 文件即数据库：read_csv / read_json / read_ndjson / read_parquet / glob
+int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, TableItem *&item)
+{
+  int ret = OB_SUCCESS;
+  bool enabled = false;
+  ObString path;
+  ObString format_name;
+  int64_t sample_size = -1;
+  if (OB_FAIL(session_info_->get_sys_variable(share::SYS_VAR_ENABLE_FILE_SQL, enabled))) {
+  } else if (!enabled) {
+    ret = OB_NOT_SUPPORTED;
+    LOG_USER_ERROR(OB_NOT_SUPPORTED, call.descriptor_->name_);
+  } else if (call.arguments_ == nullptr || call.arguments_->num_child_ == 0) {
+    ret = OB_ERR_UNEXPECTED;
+  } else {
+    const ParseNode *path_node = call.arguments_->children_[0];
+    if (path_node->type_ != T_VARCHAR) {
+      ret = OB_ERR_UNEXPECTED;
+    } else {
+      path.assign_ptr(path_node->str_value_, path_node->str_len_);
+    }
+    for (int64_t i = 1; OB_SUCC(ret) && i < call.arguments_->num_child_; ++i) {
+      const ParseNode *arg = call.arguments_->children_[i];
+      if (arg->type_ == T_VARCHAR) {
+        format_name.assign_ptr(arg->str_value_, arg->str_len_);
+      } else if (arg->num_child_ == 2 && arg->children_[0] != nullptr
+                 && arg->children_[1] != nullptr) {
+        const ObString name(arg->children_[0]->str_len_, arg->children_[0]->str_value_);
+        const ParseNode *value = arg->children_[1];
+        if (0 == name.case_compare(ObString::make_string("sample_size"))) {
+          sample_size = (value->type_ == T_INT) ? value->value_ : 0;
+        } else if (0 == name.case_compare(ObString::make_string("format"))) {
+          if (value->type_ == T_VARCHAR) {
+            format_name.assign_ptr(value->str_value_, value->str_len_);
+          }
+        }
+      }
+    }
+    if (OB_SUCC(ret) && sample_size != -1) {
+      // 目前只支持全量扫描
+      ret = OB_NOT_SUPPORTED;
+      LOG_USER_ERROR(OB_NOT_SUPPORTED, "sample_size");
+    }
+    FileSqlFormat format = FILE_SQL_FORMAT_CSV;
+    if (OB_SUCC(ret) && OB_FAIL(file_sql_parse_format(format_name, format))) {
+    } else if (OB_SUCC(ret)) {
+      FileSqlTable table;
+      if (OB_FAIL(file_sql_load(path, format, true, *allocator_, table))) {
+      } else {
+        OZ (create_function_scan_item(call, item));
+        for (int64_t i = 0; OB_SUCC(ret) && i < table.columns_.count(); ++i) {
+          const FileSqlColumn &column = table.columns_.at(i);
+          ColumnItem *bound = nullptr;
+          OZ (resolve_function_table_column_item(*item, column.type_.get_meta_type(),
+                column.type_.get_accuracy(), column.name_, OB_APP_MIN_COLUMN_ID + i, bound));
+        }
+      }
+    }
   }
   return ret;
 }
