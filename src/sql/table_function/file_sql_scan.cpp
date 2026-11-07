@@ -31,27 +31,23 @@ namespace
 
 // 把字符串按列类型转成 ObObj
 int convert_value(ObIAllocator &allocator, const ObString &value, bool is_null,
-                  const ObDataType &type, ObObj &obj)
+                  const FileSqlColumn &column, ObObj &obj)
 {
   int ret = OB_SUCCESS;
   if (is_null) {
     obj.set_null();
-  } else if (type.get_meta_type() == ObIntType || type.get_meta_type() == ObTinyIntType) {
-    int64_t number = 0;
-    number = strtoll(value.ptr(), NULL, 10);
-    obj.set_int(number);
-  } else if (type.is_double()) {
-    double number = 0.0;
-    number = strtod(value.ptr(), NULL);
-    obj.set_double(number);
-  } else if (type.is_bool()) {
+  } else if (column.kind_ == FILE_SQL_VALUE_INT) {
+    obj.set_int(strtoll(value.ptr(), NULL, 10));
+  } else if (column.kind_ == FILE_SQL_VALUE_DOUBLE) {
+    obj.set_double(strtod(value.ptr(), NULL));
+  } else if (column.kind_ == FILE_SQL_VALUE_BOOL) {
     obj.set_bool(0 == value.case_compare(ObString::make_string("true"))
                  || 0 == value.case_compare(ObString::make_string("1")));
   } else {
     ObString copied;
-    if (OB_SUCC(ret) && OB_FAIL(file_sql_copy_to_allocator(allocator, value, copied))) {
-    } else if (OB_SUCC(ret)) {
-      obj.set_string(copied);
+    if (OB_FAIL(file_sql_copy_to_allocator(allocator, value, copied))) {
+    } else {
+      obj.set_string(ObVarcharType, copied);
     }
   }
   return ret;
@@ -149,7 +145,7 @@ public:
           const bool is_null = c < file_row.nulls_.count() ? file_row.nulls_.at(c) : true;
           ObObj cell;
           if (OB_SUCC(ret) && OB_FAIL(convert_value(context_.allocator_, value, is_null,
-                                                   table_.columns_.at(c).type_, cell))) {
+                                                   table_.columns_.at(c), cell))) {
           } else if (OB_SUCC(ret) && OB_FAIL(cells_.push_back(cell))) {
             ret = OB_ERR_UNEXPECTED;
           }

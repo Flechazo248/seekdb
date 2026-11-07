@@ -346,6 +346,11 @@ void infer_column_types(FileSqlTable &table)
     }
     table.columns_.at(c).type_ = type;
     table.columns_.at(c).nullable_ = nullable;
+    if (all_bool) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_BOOL; }
+    else if ((all_dt || all_date)) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_VARCHAR; }
+    else if (all_num && all_int) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_INT; }
+    else if (all_num) { table.columns_.at(c).kind_ = FILE_SQL_VALUE_DOUBLE; }
+    else { table.columns_.at(c).kind_ = FILE_SQL_VALUE_VARCHAR; }
   }
 }
 

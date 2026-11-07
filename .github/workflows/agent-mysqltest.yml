@@ -73,7 +73,7 @@ jobs:
             -d '{"model":"m","input":["x"]}' \
             http://127.0.0.1:8000/compatible-mode/v1/embeddings || true
 
-      - name: Run mysqltest cases
+      - name: Run ai_function mysqltest cases
         shell: bash
         run: |
           set -euo pipefail
@@ -83,7 +83,19 @@ jobs:
             --mysqltest "$GITHUB_WORKSPACE/deps/3rd/u01/obclient/bin/mysqltest" \
             --work-dir "$GITHUB_WORKSPACE/agent_work" \
             --port 2881 \
-            --case-prefix "${{ github.event.inputs.case_prefix || 'ai_function.' }}"
+            --case-prefix "ai_function."
+
+      - name: Run file_sql mysqltest cases
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 .github/script/seekdb/agent_run_cases.py \
+            --seekdb "$GITHUB_WORKSPACE/build_release/src/observer/seekdb" \
+            --obclient "$GITHUB_WORKSPACE/deps/3rd/u01/obclient/bin/obclient" \
+            --mysqltest "$GITHUB_WORKSPACE/deps/3rd/u01/obclient/bin/mysqltest" \
+            --work-dir "$GITHUB_WORKSPACE/agent_work" \
+            --port 2881 \
+            --case-prefix "file_sql."
 
       - name: Dump mock requests
         if: always()

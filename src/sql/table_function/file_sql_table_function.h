@@ -34,10 +34,20 @@ enum FileSqlFormat
   FILE_SQL_FORMAT_GLOB = 3,
 };
 
+// 推断出的列类型种类
+enum FileSqlValueKind
+{
+  FILE_SQL_VALUE_INT = 0,
+  FILE_SQL_VALUE_DOUBLE = 1,
+  FILE_SQL_VALUE_BOOL = 2,
+  FILE_SQL_VALUE_VARCHAR = 3,
+};
+
 struct FileSqlColumn
 {
   ObString name_;
   ObDataType type_;
+  int kind_ = FILE_SQL_VALUE_VARCHAR;
   bool nullable_ = true;
 };
 
