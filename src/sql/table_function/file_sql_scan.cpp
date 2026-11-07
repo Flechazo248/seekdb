@@ -97,7 +97,7 @@ public:
     } else if (OB_FAIL(file_sql_load(path, format_, false, context_.allocator_, table_))) {
     } else {
       // 用绑定期推断出的列覆盖，保证列顺序与查询一致
-      if (OB_SUCC(ret) && table_.columns_.count() != expected_columns_.count()) {
+      if (OB_SUCC(ret) && table_.columns_.count() != expected_columns_) {
         ret = OB_ERR_UNEXPECTED;
       }
     }
@@ -120,11 +120,10 @@ public:
     } else if (format_ == FILE_SQL_FORMAT_GLOB) {
       if (row_index_ >= files_.count()) {
         ret = OB_ITER_END;
-      } else if (OB_FAIL(cells_.reset())) {
-        ret = OB_ERR_UNEXPECTED;
       } else {
+        cells_.reset();
         ObObj cell;
-        cell.set_string(files_.at(row_index_));
+        cell.set_string(ObVarcharType, files_.at(row_index_));
         if (OB_SUCC(ret) && OB_FAIL(cells_.push_back(cell))) { ret = OB_ERR_UNEXPECTED; }
         if (OB_SUCC(ret)) {
           ++row_index_;
@@ -137,7 +136,7 @@ public:
       ret = OB_ITER_END;
     } else {
       const FileSqlRow &file_row = table_.rows_.at(row_index_);
-      if (OB_FAIL(cells_.reset())) {
+      if (cells_.reset()) {
         ret = OB_ERR_UNEXPECTED;
       } else {
         for (int64_t c = 0; OB_SUCC(ret) && c < table_.columns_.count(); ++c) {
@@ -177,12 +176,8 @@ private:
       ret = OB_ERR_UNEXPECTED;
     } else {
       ObExpr *expr = context_.argument_exprs_.at(0);
-      ObDatum datum;
-      if (OB_FAIL(expr->eval(eval_ctx_, datum))) {
-        ret = OB_ERR_UNEXPECTED;
-      } else {
-        path = datum.get_string();
-      }
+      ObDatum &datum = expr->locate_datum_for_write(eval_ctx_);
+      path = datum.get_string();
     }
     return ret;
   }
