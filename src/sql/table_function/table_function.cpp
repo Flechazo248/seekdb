@@ -36,10 +36,6 @@ int bind_hybrid(ObDMLResolver &resolver, const TableFunctionCall &call, TableIte
 { return resolver.bind_hybrid_table_function(call, item); }
 int bind_file_sql(ObDMLResolver &resolver, const TableFunctionCall &call, TableItem *&item)
 { return resolver.bind_file_sql_table_function(call, item); }
-int compile_file_sql_csv_options(const TableItem &, common::ObIAllocator &, common::ObString &);
-int compile_file_sql_json_options(const TableItem &, common::ObIAllocator &, common::ObString &);
-int compile_file_sql_glob_options(const TableItem &, common::ObIAllocator &, common::ObString &);
-int create_file_sql_scan(const TableFunctionScanContext &, ITableFunctionScan *&);
 TableFunctionColumn generator_column()
 {
   TableFunctionColumn result;

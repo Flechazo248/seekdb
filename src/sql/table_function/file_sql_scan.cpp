@@ -72,9 +72,20 @@ int file_sql_copy_to_allocator(ObIAllocator &allocator, const ObString &src, ObS
 class FileSqlScan final : public ITableFunctionScan
 {
 public:
-  explicit FileSqlScan(const TableFunctionScanContext &context, FileSqlFormat format)
-    : context_(context), format_(format), eval_ctx_(context.exec_ctx_), row_index_(0),
-      initialized_(false), closed_(false) {}
+  explicit FileSqlScan(const TableFunctionScanContext &context)
+    : context_(context), format_(FILE_SQL_FORMAT_CSV), eval_ctx_(context.exec_ctx_), row_index_(0),
+      initialized_(false), closed_(false)
+  {
+    const ObString &options = context_.options_;
+    if (0 == options.case_compare(ObString::make_string("json"))
+        || 0 == options.case_compare(ObString::make_string("ndjson"))) {
+      format_ = FILE_SQL_FORMAT_JSONL;
+    } else if (0 == options.case_compare(ObString::make_string("glob"))) {
+      format_ = FILE_SQL_FORMAT_GLOB;
+    } else {
+      format_ = FILE_SQL_FORMAT_CSV;
+    }
+  }
   ~FileSqlScan() override { (void) close(); }
 
   int open() override
@@ -194,14 +205,39 @@ private:
   bool closed_;
 };
 
-int create_file_sql_scan(const TableFunctionScanContext &context, FileSqlFormat format, ITableFunctionScan *&scan)
+static int compile_file_sql_format_options(const char *format_name,
+                                           common::ObIAllocator &allocator,
+                                           common::ObString &options)
+{
+  int ret = OB_SUCCESS;
+  const int64_t len = static_cast<int64_t>(strlen(format_name));
+  char *buf = static_cast<char *>(allocator.alloc(len + 1));
+  if (OB_ISNULL(buf)) {
+    ret = OB_ALLOCATE_MEMORY_FAILED;
+  } else {
+    MEMCPY(buf, format_name, len + 1);
+    options.assign_ptr(buf, len);
+  }
+  return ret;
+}
+
+int compile_file_sql_csv_options(const TableItem &, common::ObIAllocator &allocator, common::ObString &options)
+{ return compile_file_sql_format_options("csv", allocator, options); }
+
+int compile_file_sql_json_options(const TableItem &, common::ObIAllocator &allocator, common::ObString &options)
+{ return compile_file_sql_format_options("json", allocator, options); }
+
+int compile_file_sql_glob_options(const TableItem &, common::ObIAllocator &allocator, common::ObString &options)
+{ return compile_file_sql_format_options("glob", allocator, options); }
+
+int create_file_sql_scan(const TableFunctionScanContext &context, ITableFunctionScan *&scan)
 {
   int ret = OB_SUCCESS;
   void *memory = context.allocator_.alloc(sizeof(FileSqlScan));
   if (OB_ISNULL(memory)) {
     ret = OB_ALLOCATE_MEMORY_FAILED;
   } else {
-    scan = new (memory) FileSqlScan(context, format);
+    scan = new (memory) FileSqlScan(context);
   }
   return ret;
 }
