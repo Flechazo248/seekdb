@@ -329,7 +329,9 @@ void infer_column_types(FileSqlTable &table)
       type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
     } else if (all_bool) {
-      type.set_obj_type(ObBoolType);
+      type.set_obj_type(ObTinyIntType);
+      type.set_precision(1);
+      type.set_scale(0);
     } else if (all_dt || all_date) {
       // 日期/时间列暂按字符串返回：值与文件内容完全一致，
       // 期望输出里的 DATE/DATETIME 类型待接入 OB 的字符串转日期接口后再切换。

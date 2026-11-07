@@ -35,22 +35,15 @@ int convert_value(ObIAllocator &allocator, const ObString &value, bool is_null,
 {
   int ret = OB_SUCCESS;
   if (is_null) {
-    obj.set_null(type.get_meta_type() == ObNullType ? ObNullType : type.get_meta_type());
-  } else if (type.is_integer()) {
+    obj.set_null();
+  } else if (type.get_meta_type() == ObIntType || type.get_meta_type() == ObTinyIntType) {
     int64_t number = 0;
-    if (OB_SUCC(ret) && OB_FAIL(ObNumberUtil::strict_convert_to_int64(
-            value, number, type.get_scale(), type.get_precision()))) {
-      ret = OB_ERR_CONVERT_NUMBER_FAILED;
-    } else if (OB_SUCC(ret)) {
-      obj.set_int(number);
-    }
+    number = strtoll(value.ptr(), NULL, 10);
+    obj.set_int(number);
   } else if (type.is_double()) {
     double number = 0.0;
-    if (OB_SUCC(ret) && OB_FAIL(ObNumberUtil::strict_convert_to_double(value, number))) {
-      ret = OB_ERR_CONVERT_NUMBER_FAILED;
-    } else if (OB_SUCC(ret)) {
-      obj.set_double(number);
-    }
+    number = strtod(value.ptr(), NULL);
+    obj.set_double(number);
   } else if (type.is_bool()) {
     obj.set_bool(0 == value.case_compare(ObString::make_string("true"))
                  || 0 == value.case_compare(ObString::make_string("1")));
