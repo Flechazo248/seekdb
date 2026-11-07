@@ -2075,7 +2075,8 @@ def def_table_schema(**keywords):
 
   # Virtual sources have program definitions, not table/index schema objects.
   # Retain provider constants used by collectors while their callers migrate.
-  if keywords['table_type'] == 'VIRTUAL_TABLE':
+  if keywords['table_type'] == 'VIRTUAL_TABLE' \
+     and not keywords['table_name'].startswith('__all_virtual_core_'):
     name = keywords['table_name'] + keywords['name_postfix']
     table_name_postfix_ids.append((name, int(keywords['table_id'])))
     table_name_postfix_table_names.append((name, keywords['table_name']))
