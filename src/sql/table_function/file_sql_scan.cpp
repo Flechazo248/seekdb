@@ -52,9 +52,8 @@ int convert_value(ObIAllocator &allocator, const ObString &value, bool is_null,
       obj.set_double(number);
     }
   } else if (type.is_bool()) {
-    obj.set_bool(value.equals(ObString::make_string("true"))
-                 || value.equals(ObString::make_string("TRUE"))
-                 || value.equals(ObString::make_string("1")));
+    obj.set_bool(0 == value.case_compare(ObString::make_string("true"))
+                 || 0 == value.case_compare(ObString::make_string("1")));
   } else {
     ObString copied;
     if (OB_SUCC(ret) && OB_FAIL(file_sql_copy_to_allocator(allocator, value, copied))) {
@@ -99,11 +98,11 @@ public:
       } else {
         FileSqlColumn column;
         column.name_ = ObString::make_string("file");
-        column.type_.set_varchar();
+        column.type_.set_obj_type(ObVarcharType);
         column.type_.set_collation_level(CS_LEVEL_IMPLICIT);
         column.nullable_ = false;
         if (OB_FAIL(table_.columns_.push_back(column))) {
-          ret = OB_FAIL_UNEXPECTED;
+          ret = OB_ERR_UNEXPECTED;
         }
       }
     } else if (OB_FAIL(file_sql_load(path, format_, false, context_.allocator_, table_))) {
@@ -133,11 +132,11 @@ public:
       if (row_index_ >= files_.count()) {
         ret = OB_ITER_END;
       } else if (OB_FAIL(cells_.reset())) {
-        ret = OB_FAIL_UNEXPECTED;
+        ret = OB_ERR_UNEXPECTED;
       } else {
         ObObj cell;
         cell.set_string(files_.at(row_index_));
-        if (OB_SUCC(ret) && OB_FAIL(cells_.push_back(cell))) { ret = OB_FAIL_UNEXPECTED; }
+        if (OB_SUCC(ret) && OB_FAIL(cells_.push_back(cell))) { ret = OB_ERR_UNEXPECTED; }
         if (OB_SUCC(ret)) {
           ++row_index_;
           row_.cells_ = cells_.get_data();
@@ -150,7 +149,7 @@ public:
     } else {
       const FileSqlRow &file_row = table_.rows_.at(row_index_);
       if (OB_FAIL(cells_.reset())) {
-        ret = OB_FAIL_UNEXPECTED;
+        ret = OB_ERR_UNEXPECTED;
       } else {
         for (int64_t c = 0; OB_SUCC(ret) && c < table_.columns_.count(); ++c) {
           const ObString value = c < file_row.values_.count() ? file_row.values_.at(c) : ObString();
@@ -159,7 +158,7 @@ public:
           if (OB_SUCC(ret) && OB_FAIL(convert_value(context_.allocator_, value, is_null,
                                                    table_.columns_.at(c).type_, cell))) {
           } else if (OB_SUCC(ret) && OB_FAIL(cells_.push_back(cell))) {
-            ret = OB_FAIL_UNEXPECTED;
+            ret = OB_ERR_UNEXPECTED;
           }
         }
       }
@@ -191,7 +190,7 @@ private:
       ObExpr *expr = context_.argument_exprs_.at(0);
       ObDatum datum;
       if (OB_FAIL(expr->eval(eval_ctx_, datum))) {
-        ret = OB_FAIL_UNEXPECTED;
+        ret = OB_ERR_UNEXPECTED;
       } else {
         path = datum.get_string();
       }

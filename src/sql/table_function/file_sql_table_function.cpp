@@ -70,9 +70,9 @@ bool is_number(const ObString &s)
 
 bool is_bool(const ObString &s)
 {
-  return s.equals(ObString::make_string("true")) || s.equals(ObString::make_string("false"))
-         || s.equals(ObString::make_string("TRUE")) || s.equals(ObString::make_string("FALSE"))
-         || s.equals(ObString::make_string("True")) || s.equals(ObString::make_string("False"));
+  return 0 == s.case_compare(ObString::make_string("true")) || 0 == s.case_compare(ObString::make_string("false"))
+         || 0 == s.case_compare(ObString::make_string("TRUE")) || 0 == s.case_compare(ObString::make_string("FALSE"))
+         || 0 == s.case_compare(ObString::make_string("True")) || 0 == s.case_compare(ObString::make_string("False"));
 }
 
 bool is_date(const ObString &s)
@@ -164,7 +164,7 @@ int parse_csv_line(const ObString &line, ObIAllocator &allocator, ObArray<ObStri
       while (pos < len && data[pos] != ',') { ++pos; }
       field.assign_ptr(data + start, pos - start);
     }
-    if (OB_SUCC(ret) && OB_FAIL(fields.push_back(field))) { ret = OB_FAIL_UNEXPECTED; }
+    if (OB_SUCC(ret) && OB_FAIL(fields.push_back(field))) { ret = OB_ERR_UNEXPECTED; }
     if (pos >= len) { break; }
     ++pos; // 跳过逗号
   }
@@ -237,9 +237,9 @@ int parse_jsonl_line(const ObString &line, ObIAllocator &allocator,
       }
     }
     if (OB_SUCC(ret)) {
-      if (OB_FAIL(keys.push_back(ObString(key.length(), key.c_str())))) { ret = OB_FAIL_UNEXPECTED; }
-      else if (OB_FAIL(values.push_back(value))) { ret = OB_FAIL_UNEXPECTED; }
-      else if (OB_FAIL(nulls.push_back(is_null))) { ret = OB_FAIL_UNEXPECTED; }
+      if (OB_FAIL(keys.push_back(ObString(key.length(), key.c_str())))) { ret = OB_ERR_UNEXPECTED; }
+      else if (OB_FAIL(values.push_back(value))) { ret = OB_ERR_UNEXPECTED; }
+      else if (OB_FAIL(nulls.push_back(is_null))) { ret = OB_ERR_UNEXPECTED; }
     }
     if (OB_SUCC(ret)) {
       skip_ws();
@@ -293,7 +293,7 @@ int split_lines(const ObString &content, ObArray<ObString> &lines)
       for (int64_t k = 0; k < line.length(); ++k) {
         if (!is_space(line.ptr()[k])) { blank = false; break; }
       }
-      if (!blank && OB_FAIL(lines.push_back(line))) { ret = OB_FAIL_UNEXPECTED; break; }
+      if (!blank && OB_FAIL(lines.push_back(line))) { ret = OB_ERR_UNEXPECTED; break; }
     }
     start = i + 1;
   }
@@ -326,20 +326,20 @@ void infer_column_types(FileSqlTable &table)
     }
     ObDataType type;
     if (!has_value) {
-      type.set_varchar();
+      type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
     } else if (all_bool) {
-      type.set_bool();
+      type.set_obj_type(ObBoolType);
     } else if (all_dt || all_date) {
       // 日期/时间列暂按字符串返回：值与文件内容完全一致，
       // 期望输出里的 DATE/DATETIME 类型待接入 OB 的字符串转日期接口后再切换。
-      type.set_varchar();
+      type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
     } else if (all_num) {
-      if (all_int) { type.set_int(); type.set_precision(20); type.set_scale(0); }
-      else { type.set_double(); }
+      if (all_int) { type.set_obj_type(ObIntType); type.set_precision(20); type.set_scale(0); }
+      else { type.set_obj_type(ObDoubleType); }
     } else {
-      type.set_varchar();
+      type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
     }
     table.columns_.at(c).type_ = type;
@@ -363,8 +363,9 @@ int file_sql_parse_format(const ObString &format_name, FileSqlFormat &format)
   } else if (0 == format_name.case_compare(ObString::make_string("parquet"))) {
     format = FILE_SQL_FORMAT_PARQUET;
   } else {
-    ret = OB_ERR_PARSE_ERROR;
-    LOG_USER_ERROR(OB_ERR_PARSE_ERROR, format_name.length(), format_name.ptr());
+    ret = OB_ERR_PARSE_SQL;
+    LOG_USER_ERROR(OB_ERR_PARSE_SQL, "unsupported file format",
+                 format_name.length(), format_name.ptr(), 1);
   }
   return ret;
 }
@@ -394,10 +395,10 @@ int file_sql_list_files(const ObString &pattern, ObIAllocator &allocator, ObArra
         if (name[0] == '.') { continue; }
         ObString file_name;
         if (OB_SUCC(ret) && OB_FAIL(copy_string(allocator, ObString(strlen(name), name), file_name))) {
-          ret = OB_FAIL_UNEXPECTED;
+          ret = OB_ERR_UNEXPECTED;
           break;
         }
-        if (OB_SUCC(ret) && OB_FAIL(files.push_back(file_name))) { ret = OB_FAIL_UNEXPECTED; break; }
+        if (OB_SUCC(ret) && OB_FAIL(files.push_back(file_name))) { ret = OB_ERR_UNEXPECTED; break; }
       }
       closedir(handle);
       if (OB_SUCC(ret)) {
@@ -423,7 +424,7 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
     } else {
       ObArray<ObString> header;
       if (OB_FAIL(parse_csv_line(lines.at(0), allocator, header))) {
-        ret = OB_FAIL_UNEXPECTED;
+        ret = OB_ERR_UNEXPECTED;
       } else {
         // 列名去重：重复列名追加 _2, _3 ...
         for (int64_t i = 0; i < header.count(); ++i) {
@@ -446,13 +447,13 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
           FileSqlColumn column;
           column.name_ = name;
           column.nullable_ = true;
-          if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_FAIL_UNEXPECTED; }
+          if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
         }
         if (OB_SUCC(ret) && !sample_only) {
           for (int64_t r = 1; OB_SUCC(ret) && r < lines.count(); ++r) {
             ObArray<ObString> values;
             if (OB_FAIL(parse_csv_line(lines.at(r), allocator, values))) {
-              ret = OB_FAIL_UNEXPECTED;
+              ret = OB_ERR_UNEXPECTED;
               break;
             }
             FileSqlRow row;
@@ -463,10 +464,10 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
                 value = values.at(c);
                 is_null = value.empty();
               }
-              if (OB_FAIL(row.values_.push_back(value))) { ret = OB_FAIL_UNEXPECTED; }
-              else if (OB_FAIL(row.nulls_.push_back(is_null))) { ret = OB_FAIL_UNEXPECTED; }
+              if (OB_FAIL(row.values_.push_back(value))) { ret = OB_ERR_UNEXPECTED; }
+              else if (OB_FAIL(row.nulls_.push_back(is_null))) { ret = OB_ERR_UNEXPECTED; }
             }
-            if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_FAIL_UNEXPECTED; }
+            if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_ERR_UNEXPECTED; }
           }
         }
       }
@@ -484,7 +485,7 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
         ObArray<ObString> row_values;
         ObArray<bool> row_nulls;
         if (OB_FAIL(parse_jsonl_line(lines.at(r), allocator, row_keys, row_values, row_nulls))) {
-          ret = OB_FAIL_UNEXPECTED;
+          ret = OB_ERR_UNEXPECTED;
           break;
         }
         if (!sample_only) {
@@ -496,9 +497,9 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
               if (0 == strcmp(keys.at(j).ptr(), row_keys.at(k).ptr())) { idx = j; break; }
             }
             if (idx < 0) {
-              if (OB_FAIL(keys.push_back(row_keys.at(k)))) { ret = OB_FAIL_UNEXPECTED; break; }
-              if (OB_FAIL(values.push_back(row_values.at(k)))) { ret = OB_FAIL_UNEXPECTED; break; }
-              if (OB_FAIL(nulls.push_back(row_nulls.at(k)))) { ret = OB_FAIL_UNEXPECTED; break; }
+              if (OB_FAIL(keys.push_back(row_keys.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
+              if (OB_FAIL(values.push_back(row_values.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
+              if (OB_FAIL(nulls.push_back(row_nulls.at(k)))) { ret = OB_ERR_UNEXPECTED; break; }
               idx = keys.count() - 1;
             } else {
               values.at(idx) = row_values.at(k);
@@ -509,10 +510,10 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
             // 按列顺序输出该行的值
             FileSqlRow row;
             for (int64_t j = 0; OB_SUCC(ret) && j < keys.count(); ++j) {
-              if (OB_FAIL(row.values_.push_back(values.at(j)))) { ret = OB_FAIL_UNEXPECTED; }
-              else if (OB_FAIL(row.nulls_.push_back(nulls.at(j)))) { ret = OB_FAIL_UNEXPECTED; }
+              if (OB_FAIL(row.values_.push_back(values.at(j)))) { ret = OB_ERR_UNEXPECTED; }
+              else if (OB_FAIL(row.nulls_.push_back(nulls.at(j)))) { ret = OB_ERR_UNEXPECTED; }
             }
-            if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_FAIL_UNEXPECTED; }
+            if (OB_SUCC(ret) && OB_FAIL(table.rows_.push_back(row))) { ret = OB_ERR_UNEXPECTED; }
           }
         }
       }
@@ -521,7 +522,7 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
           FileSqlColumn column;
           column.name_ = keys.at(k);
           column.nullable_ = true;
-          if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_FAIL_UNEXPECTED; }
+          if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
         }
       }
     }
