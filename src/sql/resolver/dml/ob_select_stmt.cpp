@@ -61,8 +61,19 @@ int ObSelectIntoItem::deep_copy(ObIAllocator &allocator,
   escaped_cht_ = other.escaped_cht_;
   cs_type_ = other.cs_type_;
   buffer_size_ = other.buffer_size_;
+  is_header_ = other.is_header_;
   user_vars_.assign(other.user_vars_);
-  if (OB_FAIL(ob_write_string(allocator, other.external_properties_, external_properties_))) {
+  if (OB_FAIL(ob_write_string(allocator, other.null_str_, null_str_))) {
+  } else {
+    column_names_.reuse();
+    for (int64_t i = 0; OB_SUCC(ret) && i < other.column_names_.count(); ++i) {
+      ObString name;
+      if (OB_FAIL(ob_write_string(allocator, other.column_names_.at(i), name))) {
+      } else if (OB_FAIL(column_names_.push_back(name))) {
+      }
+    }
+  }
+  if (OB_SUCC(ret) && OB_FAIL(ob_write_string(allocator, other.external_properties_, external_properties_))) {
   }
   for (int64_t i = 0; OB_SUCC(ret) && i < other.pl_vars_.count(); ++i) {
     ObRawExpr* pl_var;
@@ -74,6 +85,7 @@ int ObSelectIntoItem::deep_copy(ObIAllocator &allocator,
 }
 const char* const ObSelectIntoItem::DEFAULT_LINE_TERM_STR = "\n";
 const char* const ObSelectIntoItem::DEFAULT_FIELD_TERM_STR = "\t";
+const char* const ObSelectIntoItem::DEFAULT_NULL_STR = "NULL";
 const char ObSelectIntoItem::DEFAULT_FIELD_ENCLOSED_CHAR = 0;
 const bool ObSelectIntoItem::DEFAULT_OPTIONAL_ENCLOSED = false;
 const bool ObSelectIntoItem::DEFAULT_SINGLE_OPT = true;

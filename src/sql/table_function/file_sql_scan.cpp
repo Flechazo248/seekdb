@@ -244,6 +244,9 @@ int compile_file_sql_json_options(const TableItem &, common::ObIAllocator &alloc
 int compile_file_sql_glob_options(const TableItem &, common::ObIAllocator &allocator, common::ObString &options)
 { return compile_file_sql_format_options("glob", allocator, options); }
 
+int compile_file_sql_parquet_options(const TableItem &, common::ObIAllocator &allocator, common::ObString &options)
+{ return compile_file_sql_format_options("parquet", allocator, options); }
+
 int create_file_sql_scan(const TableFunctionScanContext &context, ITableFunctionScan *&scan)
 {
   int ret = OB_SUCCESS;

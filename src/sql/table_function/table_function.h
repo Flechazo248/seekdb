@@ -122,6 +122,7 @@ int create_generator_table_scan(const TableFunctionScanContext &, ITableFunction
 int compile_file_sql_csv_options(const TableItem &, common::ObIAllocator &, common::ObString &);
 int compile_file_sql_json_options(const TableItem &, common::ObIAllocator &, common::ObString &);
 int compile_file_sql_glob_options(const TableItem &, common::ObIAllocator &, common::ObString &);
+int compile_file_sql_parquet_options(const TableItem &, common::ObIAllocator &, common::ObString &);
 int create_file_sql_scan(const TableFunctionScanContext &, ITableFunctionScan *&);
 
 class TableFunctionRegistry

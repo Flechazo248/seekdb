@@ -3081,6 +3081,155 @@ int ObSelectResolver::resolve_into_outfile_without_format(const ParseNode *node,
   return ret;
 }
 
+int ObSelectResolver::resolve_into_copy(const ParseNode *node,
+                                        ObSelectIntoItem &into_item,
+                                        ObSelectStmt *select_stmt)
+{
+  int ret = OB_SUCCESS;
+  ObCollationType cs_type = CS_TYPE_INVALID;
+  if (OB_ISNULL(node) || 3 != node->num_child_) {
+    ret = OB_ERR_UNEXPECTED;
+  } else if (OB_FAIL(session_info_->get_local_collation_connection(cs_type))) {
+  } else if (OB_FAIL(resolve_into_const_node(node->children_[0], into_item.outfile_name_))) {
+  } else {
+    // copy defaults: csv format, no header, ',' delimiter, '"' quote and 'NULL' null string
+    into_item.cs_type_ = cs_type;
+    into_item.field_str_.set_varchar(ObString::make_string(","));
+    into_item.field_str_.set_collation_type(cs_type);
+    into_item.closed_cht_.meta_.set_char();
+    into_item.closed_cht_.set_char_value("\"", 1);
+    into_item.closed_cht_.set_collation_type(cs_type);
+    into_item.is_header_ = false;
+    if (OB_FAIL(ob_write_string(*allocator_,
+                                ObString::make_string(ObSelectIntoItem::DEFAULT_NULL_STR),
+                                into_item.null_str_))) {
+    } else if (OB_FAIL(resolve_into_copy_option(node->children_[1], into_item))) {
+    } else if (OB_FAIL(resolve_into_copy_column_names(select_stmt, into_item))) {
+    }
+  }
+  return ret;
+}
+
+int ObSelectResolver::resolve_into_copy_option(const ParseNode *node,
+                                                ObSelectIntoItem &into_item)
+{
+  int ret = OB_SUCCESS;
+  if (OB_ISNULL(node)) {
+    // no copy option at all, the defaults are used
+  } else {
+    for (int32_t i = 0; OB_SUCC(ret) && i < node->num_child_; ++i) {
+      const ParseNode *option_node = node->children_[i];
+      const ParseNode *name_node = NULL;
+      const ParseNode *value_node = NULL;
+      ObString option_name;
+      ObString option_value;
+      bool value_is_bool = false;
+      bool bool_value = false;
+      if (OB_ISNULL(option_node) || T_COPY_OPTION != option_node->type_ || 2 != option_node->num_child_) {
+        ret = OB_ERR_UNEXPECTED;
+      } else if (OB_ISNULL(name_node = option_node->children_[0])) {
+        ret = OB_ERR_UNEXPECTED;
+      } else {
+        option_name.assign_ptr(name_node->str_value_, static_cast<int32_t>(name_node->str_len_));
+        value_node = option_node->children_[1];
+        if (OB_NOT_NULL(value_node)) {
+          if (T_VARCHAR == value_node->type_ || T_CHAR == value_node->type_
+              || T_IDENT == value_node->type_) {
+            option_value.assign_ptr(value_node->str_value_, static_cast<int32_t>(value_node->str_len_));
+          } else if (T_BOOL == value_node->type_) {
+            value_is_bool = true;
+            bool_value = (0 != value_node->value_);
+          } else {
+            ret = OB_ERR_UNEXPECTED;
+            LOG_WARN("unsupported copy option value type", K(value_node->type_));
+          }
+        }
+      }
+      if (OB_SUCC(ret)) {
+        if (0 == option_name.case_compare(ObString::make_string("format"))) {
+          if (option_value.empty()) {
+            ret = OB_ERR_PARSE_SQL;
+            LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy format", option_name.length(), option_name.ptr(), 1);
+          } else if (0 != option_value.case_compare(ObString::make_string("csv"))) {
+            ret = OB_NOT_SUPPORTED;
+            LOG_USER_ERROR(OB_NOT_SUPPORTED, option_value.length(), option_value.ptr());
+          }
+        } else if (0 == option_name.case_compare(ObString::make_string("header"))) {
+          bool header = true;
+          if (OB_NOT_NULL(value_node)) {
+            if (value_is_bool) {
+              header = bool_value;
+            } else if (0 == option_value.case_compare(ObString::make_string("true"))
+                       || 0 == option_value.case_compare(ObString::make_string("1"))) {
+              header = true;
+            } else if (0 == option_value.case_compare(ObString::make_string("false"))
+                       || 0 == option_value.case_compare(ObString::make_string("0"))) {
+              header = false;
+            } else {
+              ret = OB_ERR_PARSE_SQL;
+              LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy header", option_name.length(), option_name.ptr(), 1);
+            }
+          }
+          if (OB_SUCC(ret)) {
+            into_item.is_header_ = header;
+          }
+        } else if (0 == option_name.case_compare(ObString::make_string("nullstr"))) {
+          if (OB_ISNULL(value_node) || value_is_bool) {
+            ret = OB_ERR_PARSE_SQL;
+            LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy nullstr", option_name.length(), option_name.ptr(), 1);
+          } else if (OB_FAIL(ob_write_string(*allocator_, option_value, into_item.null_str_))) {
+          }
+        } else if (0 == option_name.case_compare(ObString::make_string("delimiter"))) {
+          if (OB_ISNULL(value_node) || value_is_bool || 1 != option_value.length()) {
+            ret = OB_ERR_PARSE_SQL;
+            LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy delimiter", option_name.length(), option_name.ptr(), 1);
+          } else {
+            into_item.field_str_.set_varchar(option_value);
+            into_item.field_str_.set_collation_type(into_item.cs_type_);
+          }
+        } else if (0 == option_name.case_compare(ObString::make_string("quote"))) {
+          if (OB_ISNULL(value_node) || value_is_bool || 1 != option_value.length()) {
+            ret = OB_ERR_PARSE_SQL;
+            LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy quote", option_name.length(), option_name.ptr(), 1);
+          } else {
+            into_item.closed_cht_.meta_.set_char();
+            into_item.closed_cht_.set_char_value(option_value.ptr(), option_value.length());
+            into_item.closed_cht_.set_collation_type(into_item.cs_type_);
+          }
+        } else {
+          ret = OB_ERR_PARSE_SQL;
+          LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy option", option_name.length(), option_name.ptr(), 1);
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+int ObSelectResolver::resolve_into_copy_column_names(ObSelectStmt *select_stmt,
+                                                     ObSelectIntoItem &into_item)
+{
+  int ret = OB_SUCCESS;
+  if (OB_ISNULL(select_stmt)) {
+    ret = OB_ERR_UNEXPECTED;
+  } else {
+    const common::ObIArray<SelectItem> &select_items = select_stmt->get_select_items();
+    for (int64_t i = 0; OB_SUCC(ret) && i < select_items.count(); ++i) {
+      const SelectItem &select_item = select_items.at(i);
+      ObString column_name = select_item.is_real_alias_ ? select_item.alias_name_
+                                                       : select_item.expr_name_;
+      if (column_name.empty()) {
+        column_name = select_item.alias_name_;
+      }
+      ObString copied_name;
+      if (OB_FAIL(ob_write_string(*allocator_, column_name, copied_name))) {
+      } else if (OB_FAIL(into_item.column_names_.push_back(copied_name))) {
+      }
+    }
+  }
+  return ret;
+}
+
 int ObSelectResolver::resolve_into_clause(const ParseNode *node)
 {
   int ret = OB_SUCCESS;
@@ -3125,6 +3274,9 @@ int ObSelectResolver::resolve_into_clause(const ParseNode *node)
                                            into_item->user_vars_,
                                            into_item->pl_vars_,
                                            select_stmt))) {
+        }
+      } else if (T_INTO_COPY == node->type_) { // copy (query) to 'file' (options)
+        if (OB_FAIL(resolve_into_copy(node, *into_item, select_stmt))) {
         }
       } else {
         //do nothing

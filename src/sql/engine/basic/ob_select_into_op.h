@@ -71,6 +71,9 @@ public:
       parallel_(1),
       buffer_size_(DEFAULT_BUFFER_SIZE),
       is_overwrite_(false),
+      is_header_(false),
+      null_str_(),
+      column_names_(alloc),
       external_properties_(alloc)
   {
   }
@@ -90,6 +93,12 @@ public:
   int64_t parallel_;
   int64_t buffer_size_;
   bool is_overwrite_;
+  // copy statement: write a header line with the output column names
+  bool is_header_;
+  // copy statement: the text written for a SQL NULL value
+  common::ObString null_str_;
+  // copy statement: the output column names, used by the header line
+  common::ObFixedArray<common::ObString, common::ObIAllocator> column_names_;
   ObExternalFileFormat::StringData external_properties_;
   static const int64_t DEFAULT_MAX_FILE_SIZE = 256LL * 1024 * 1024;
   static const int64_t DEFAULT_BUFFER_SIZE = 1LL * 1024 * 1024;
