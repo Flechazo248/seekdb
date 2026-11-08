@@ -372,7 +372,6 @@ END_P SET_VAR DELIMITER
         ORGANIZATION
 //-----------------------------non_reserved keyword end---------------------------------------------
 %type <node> sql_stmt stmt_list stmt opt_end_p
-%type <node> describe_select_stmt
 %type <node> select_stmt update_stmt delete_stmt
 %type <node> insert_stmt single_table_insert values_clause dml_table_name
 %type <node> create_table_stmt create_table_like_stmt fork_table_stmt fork_database_stmt diff_table_stmt merge_table_stmt opt_table_option_list table_option_list table_option table_option_list_space_seperated parallel_option lob_storage_clause lob_storage_parameter lob_storage_parameters lob_chunk_size
@@ -12241,7 +12240,6 @@ explain_or_desc relation_factor opt_desc_column_option
 }
 
 | explain_or_desc explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, 0, $2, NULL, NULL);}
-| describe_select_stmt { $$ = $1; }
 | explain_or_desc PRETTY explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, T_PRETTY, $3, NULL, NULL);}
 | explain_or_desc PRETTY_COLOR explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, T_PRETTY_COLOR, $3, NULL, NULL);}
 
@@ -12280,23 +12278,9 @@ explain_or_desc relation_factor opt_desc_column_option
 }
 ;
 
-describe_select_stmt:
-DESCRIBE select_stmt
-{
-  ParseNode *select_node = $2;
-  if (NULL == select_node || T_SELECT != select_node->type_) {
-    yyerror(NULL, result, "invalid describe statement\n");
-    YYABORT_PARSE_SQL_ERROR;
-  } else {
-    malloc_non_terminal_node($$, result->malloc_pool_, T_DESCRIBE_SELECT, 1, select_node);
-  }
-}
-;
-
 explain_or_desc:
 EXPLAIN {$$ = NULL;}
-| DESCRIBE {$$ = NULL; /* T_DESCRIBE_SELECT_MARKER: DESCRIBE is handled as a
-                      separate statement, see GEN_EXPLAN_STMT below. */}
+| DESCRIBE {$$ = NULL;}
 | DESC  {$$ = NULL;}
 ;
 
