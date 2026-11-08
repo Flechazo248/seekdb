@@ -74,11 +74,11 @@ jobs:
             http://127.0.0.1:8000/compatible-mode/v1/embeddings || true
 
       - name: Trust the local host key for ssh
+        shell: bash
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -H 127.0.0.1 localhost 127.0.1.1 >> ~/.ssh/known_hosts 2>/dev/null || true
-          printf 'StrictHostKeyChecking no
-' > ~/.ssh/config
+          echo 'StrictHostKeyChecking no' > ~/.ssh/config
       - name: Run ai_function mysqltest cases
         continue-on-error: true
         shell: bash
