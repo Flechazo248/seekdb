@@ -2523,7 +2523,10 @@ def generate_h_content():
   h_f.write("\npublic:\n")
   method_line = "  static int {0}_schema(share::schema::ObTableSchema &table_schema);\n"
   for (table_name, table_id) in new_table_name_postfix_ids:
-    if not is_virtual_table(table_id):
+    # CORE_INNER_CLASS_METHOD: the __all_virtual_core_* tables keep a schema in the
+    # tenant, so their creator methods must be declared here as well.
+    if (not is_virtual_table(table_id)) \
+        or table_name.startswith('__all_virtual_core_'):
       h_f.write(method_line.format(table_name.replace('$', '_').lower().strip('_'), table_id))
   for line in new_index_name_ids:
     h_f.write(method_line.format(line[2].replace('$', '_').strip('_').lower()+'_'+line[0].lower(), line[1]))
