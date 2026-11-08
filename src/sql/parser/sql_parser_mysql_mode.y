@@ -50,8 +50,13 @@
   if (0 != display_type) { \
     malloc_terminal_node(display_node, result->malloc_pool_, display_type); \
   } \
-  malloc_non_terminal_node(explain_stmt, result->malloc_pool_, T_EXPLAIN, 5, \
-                           type_node, display_node, into_table, set_statement_id, stmt);
+  if (NULL != no_use) { \
+    /* DESCRIBE_MARKER: DESCRIBE <query> becomes a T_DESCRIBE_SELECT node. */ \
+    malloc_non_terminal_node(explain_stmt, result->malloc_pool_, T_DESCRIBE_SELECT, 1, stmt); \
+  } else { \
+    malloc_non_terminal_node(explain_stmt, result->malloc_pool_, T_EXPLAIN, 5, \
+                             type_node, display_node, into_table, set_statement_id, stmt); \
+  }
 %}
 
 %destructor {destroy_tree($$);}<node>
@@ -12280,8 +12285,11 @@ explain_or_desc relation_factor opt_desc_column_option
 
 explain_or_desc:
 EXPLAIN {$$ = NULL;}
-| DESCRIBE {$$ = NULL;}
-| DESC  {$$ = NULL;}
+/* DESCRIBE_MARKER: DESCRIBE/DESC on a query is a separate statement
+   (T_DESCRIBE_SELECT); EXPLAIN keeps the NULL marker. The marker is only
+   consumed by GEN_EXPLAN_STMT, so 'DESCRIBE <table>' is unaffected. */
+| DESCRIBE { malloc_terminal_node($$, result->malloc_pool_, T_DESCRIBE_SELECT); }
+| DESC  { malloc_terminal_node($$, result->malloc_pool_, T_DESCRIBE_SELECT); }
 ;
 
 explainable_stmt:
