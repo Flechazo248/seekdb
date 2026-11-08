@@ -3125,7 +3125,11 @@ int ObSelectResolver::resolve_into_copy_option(const ParseNode *node,
       ObString option_value;
       bool value_is_bool = false;
       bool bool_value = false;
-      if (OB_ISNULL(option_node) || T_COPY_OPTION != option_node->type_ || 2 != option_node->num_child_) {
+      if (OB_ISNULL(option_node) || T_COPY_OPTION != option_node->type_) {
+        // the list node may carry a leading value slot; skip it
+        continue;
+      }
+      if (2 != option_node->num_child_) {
         ret = OB_ERR_UNEXPECTED;
       } else if (OB_ISNULL(name_node = option_node->children_[0])) {
         ret = OB_ERR_UNEXPECTED;

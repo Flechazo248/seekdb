@@ -9017,7 +9017,7 @@ opt_copy_option_list:
 copy_option_list:
 copy_option_item
 {
-  malloc_list_node($$, result->malloc_pool_, T_EXPR_LIST, 1, $1);
+  malloc_list_node($$, result->malloc_pool_, T_EXPR_LIST, 2, 1, $1);
 }
 | copy_option_list ',' copy_option_item
 {
