@@ -3152,7 +3152,7 @@ int ObSelectResolver::resolve_into_copy_option(const ParseNode *node,
             LOG_USER_ERROR(OB_ERR_PARSE_SQL, "copy format", option_name.length(), option_name.ptr(), 1);
           } else if (0 != option_value.case_compare(ObString::make_string("csv"))) {
             ret = OB_NOT_SUPPORTED;
-            LOG_USER_ERROR(OB_NOT_SUPPORTED, option_value.length(), option_value.ptr());
+            LOG_USER_ERROR(OB_NOT_SUPPORTED, "this copy format type");
           }
         } else if (0 == option_name.case_compare(ObString::make_string("header"))) {
           bool header = true;
@@ -3216,10 +3216,13 @@ int ObSelectResolver::resolve_into_copy_column_names(ObSelectStmt *select_stmt,
     const common::ObIArray<SelectItem> &select_items = select_stmt->get_select_items();
     for (int64_t i = 0; OB_SUCC(ret) && i < select_items.count(); ++i) {
       const SelectItem &select_item = select_items.at(i);
-      ObString column_name = select_item.is_real_alias_ ? select_item.alias_name_
-                                                       : select_item.expr_name_;
+      // the alias name holds the real alias if there is one, otherwise the
+      // unqualified column name, the expression name is the raw text of the
+      // select item and is used as the last resort
+      ObString column_name = select_item.alias_name_.empty() ? select_item.expr_name_
+                                                             : select_item.alias_name_;
       if (column_name.empty()) {
-        column_name = select_item.alias_name_;
+        column_name = select_item.expr_name_;
       }
       ObString copied_name;
       if (OB_FAIL(ob_write_string(*allocator_, column_name, copied_name))) {

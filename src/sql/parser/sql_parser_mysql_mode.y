@@ -377,6 +377,7 @@ END_P SET_VAR DELIMITER
         ORGANIZATION
 //-----------------------------non_reserved keyword end---------------------------------------------
 %type <node> sql_stmt stmt_list stmt opt_end_p
+%type <node> copy_stmt opt_copy_option_list copy_option_list copy_option_item copy_option_value copy_option_name
 %type <node> select_stmt update_stmt delete_stmt
 %type <node> insert_stmt single_table_insert values_clause dml_table_name
 %type <node> create_table_stmt create_table_like_stmt fork_table_stmt fork_database_stmt diff_table_stmt merge_table_stmt opt_table_option_list table_option_list table_option table_option_list_space_seperated parallel_option lob_storage_clause lob_storage_parameter lob_storage_parameters lob_chunk_size
@@ -652,6 +653,7 @@ stmt:
   | purge_stmt              { $$ = $1; check_question_mark($$, result); }
   | analyze_stmt            { $$ = $1; check_question_mark($$, result); }
   | load_data_stmt          { $$ = $1; check_question_mark($$, result); }
+  | copy_stmt               { $$ = $1; check_question_mark($$, result); }
   | optimize_stmt     { $$ = $1; check_question_mark($$, result); }
   | flush_privileges_stmt { $$ = $1; check_question_mark($$, result); }
   | dump_memory_stmt  { $$ = $1; check_question_mark($$, result); }
@@ -8958,6 +8960,127 @@ NAME_OB
 unreserved_keyword_normal
 {
   get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+;
+
+/*****************************************************************************
+ *
+ *	copy grammar: COPY (query) TO 'file' (options)
+ *
+ * The copy statement reuses the select parse tree. The select node stays the
+ * statement root and a T_INTO_COPY into clause is attached to it, so that the
+ * normal select pipeline (transform/optimize/codegen/execute) produces the
+ * rows that have to be written into the file.
+ *
+ * The option name is a dedicated non terminal instead of the generic
+ * column_name, so that the copy options can not interfere with the other
+ * rules sharing the identifier states of the grammar.
+ *
+ *****************************************************************************/
+
+copy_stmt:
+COPY select_with_parens TO STRING_VALUE opt_copy_option_list
+{
+  ParseNode *into_node = NULL;
+  if (NULL == $2 || T_SELECT != $2->type_) {
+    yyerror(NULL, result, "invalid copy statement\n");
+    YYABORT_PARSE_SQL_ERROR;
+  } else if (NULL != $2->children_[PARSE_SELECT_INTO_EXTRA]) {
+    yyerror(NULL, result, "invalid copy statement\n");
+    YYABORT_PARSE_SQL_ERROR;
+  } else {
+    (void)($1) ; /* make bison mute */
+    (void)($3) ; /* make bison mute */
+    /* the children of the into node are the target file name and the copy
+     * option list */
+    malloc_non_terminal_node(into_node, result->malloc_pool_, T_INTO_COPY, 3, $4, $5, NULL);
+    /* the target file name and the copy options are resolved when the
+     * statement is resolved, they must not be parameterized */
+    into_node->is_tree_not_param_ = true;
+    $2->children_[PARSE_SELECT_INTO_EXTRA] = into_node;
+    $$ = $2;
+  }
+}
+;
+
+opt_copy_option_list:
+/* EMPTY */
+{
+  $$ = NULL;
+}
+| '(' copy_option_list ')'
+{
+  $$ = $2;
+}
+;
+
+copy_option_list:
+copy_option_item
+{
+  malloc_list_node($$, result->malloc_pool_, T_EXPR_LIST, 1, $1);
+}
+| copy_option_list ',' copy_option_item
+{
+  push_back_list(result->malloc_pool_, result, $$, $1, $3);
+}
+;
+
+copy_option_item:
+copy_option_name
+{
+  malloc_non_terminal_node($$, result->malloc_pool_, T_COPY_OPTION, 2, $1, NULL);
+}
+| copy_option_name opt_equal_mark copy_option_value
+{
+  (void)($2) ; /* make bison mute */
+  malloc_non_terminal_node($$, result->malloc_pool_, T_COPY_OPTION, 2, $1, $3);
+}
+;
+
+copy_option_name:
+NAME_OB
+{
+  $$ = $1;
+}
+| FORMAT
+{
+  (void)($1) ; /* make bison mute */
+  get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+| ESCAPE
+{
+  (void)($1) ; /* make bison mute */
+  get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+| ENCLOSED
+{
+  (void)($1) ; /* make bison mute */
+  get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+| LINES
+{
+  (void)($1) ; /* make bison mute */
+  get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+| TERMINATED
+{
+  (void)($1) ; /* make bison mute */
+  get_non_reserved_node($$, result->malloc_pool_, @1.first_column, @1.last_column);
+}
+;
+
+copy_option_value:
+STRING_VALUE
+{
+  $$ = $1;
+}
+| NAME_OB
+{
+  $$ = $1;
+}
+| BOOL_VALUE
+{
+  $$ = $1;
 }
 ;
 
