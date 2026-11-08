@@ -121,8 +121,9 @@ public:
   }
   inline void set_column_names(const common::ObIArray<common::ObString> &column_names)
   {
-    for (int i = 0 ; i < column_names.count() ; ++i) {
-      if (OB_FAIL(column_names_.push_back(column_names.at(i)))) {
+    for (int64_t i = 0 ; i < column_names.count() ; ++i) {
+      if (OB_SUCCESS != column_names_.push_back(column_names.at(i))) {
+        break;
       }
     }
   }
