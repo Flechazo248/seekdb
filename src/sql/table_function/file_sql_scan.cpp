@@ -94,6 +94,8 @@ public:
       format_ = FILE_SQL_FORMAT_JSONL;
     } else if (0 == options.case_compare(ObString::make_string("glob"))) {
       format_ = FILE_SQL_FORMAT_GLOB;
+    } else if (0 == options.case_compare(ObString::make_string("parquet"))) {
+      format_ = FILE_SQL_FORMAT_PARQUET;
     } else {
       format_ = FILE_SQL_FORMAT_CSV;
     }

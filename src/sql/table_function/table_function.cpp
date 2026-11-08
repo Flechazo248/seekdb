@@ -67,7 +67,7 @@ const TableFunctionDescriptor BUILTINS[] = {
    1, 3, nullptr, 0, bind_file_sql, create_file_sql_scan, nullptr, nullptr, 0, compile_file_sql_json_options, true},
   {READ_PARQUET_FUNCTION_ID, "read_parquet", "read_parquet(path, format, options)",
    "Read a local parquet file as a table.",
-   1, 3, nullptr, 0, bind_file_sql, create_file_sql_scan, nullptr, nullptr, 0, compile_file_sql_csv_options, true},
+   1, 3, nullptr, 0, bind_file_sql, create_file_sql_scan, nullptr, nullptr, 0, compile_file_sql_parquet_options, true},
   {GLOB_FUNCTION_ID, "glob", "glob(pattern)",
    "List files matching the pattern; one file column is returned.",
    1, 1, nullptr, 0, bind_file_sql, create_file_sql_scan, nullptr, nullptr, 0, compile_file_sql_glob_options, true}
