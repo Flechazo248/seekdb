@@ -27,6 +27,7 @@
 #include <sstream>
 
 #include "common/timezone/ob_time_convert.h"
+#include "sql/table_function/file_sql_parquet.h"
 
 namespace oceanbase
 {
@@ -435,7 +436,7 @@ int file_sql_parse_format(const ObString &format_name, FileSqlFormat &format)
 {
   int ret = OB_SUCCESS;
   if (format_name.empty()) {
-    format = FILE_SQL_FORMAT_CSV;
+    // 未显式指定格式时保留调用方按表函数语义选定的格式
   } else if (0 == format_name.case_compare(ObString::make_string("csv"))) {
     format = FILE_SQL_FORMAT_CSV;
   } else if (0 == format_name.case_compare(ObString::make_string("json"))
@@ -538,8 +539,23 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
                   ObIAllocator &allocator, FileSqlTable &table)
 {
   int ret = OB_SUCCESS;
+  bool parquet_loaded = false;
   ObString content;
-  if (OB_FAIL(read_whole_file(path, allocator, content))) {
+  if (FILE_SQL_FORMAT_GLOB == format) {
+    // glob 只返回一列文件名，路径是通配符，不需要读取文件
+    FileSqlColumn column;
+    column.name_ = ObString::make_string("file");
+    column.type_.set_obj_type(ObVarcharType);
+    column.type_.set_collation_level(CS_LEVEL_IMPLICIT);
+    column.nullable_ = false;
+    if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
+  } else if (OB_FAIL(read_whole_file(path, allocator, content))) {
+  } else if (FILE_SQL_FORMAT_PARQUET == format || file_sql_is_parquet_content(content)) {
+    // parquet 文件：列名与列类型来自文件自身的 schema，不需要再从内容推断
+    parquet_loaded = true;
+    if (OB_FAIL(file_sql_load_parquet(content, sample_only, allocator, table))) {
+      LOG_WARN("failed to load parquet file", K(ret), K(path));
+    }
   } else if (format == FILE_SQL_FORMAT_CSV) {
     ObArray<ObString> lines;
     if (OB_FAIL(split_lines(content, lines)) || lines.count() == 0) {
@@ -596,8 +612,7 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
         }
       }
     }
-  } else if (format == FILE_SQL_FORMAT_JSONL) {
-    ObArray<ObString> lines;
+  } else if (format == FILE_SQL_FORMAT_JSONL) {    ObArray<ObString> lines;
     if (OB_FAIL(split_lines(content, lines)) || lines.count() == 0) {
       ret = OB_ERR_UNEXPECTED;
     } else {
@@ -656,17 +671,11 @@ int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
       }
     }
   } else if (format == FILE_SQL_FORMAT_GLOB) {
-    // glob 只返回一列文件名
-    FileSqlColumn column;
-    column.name_ = ObString::make_string("file");
-    column.type_.set_obj_type(ObVarcharType);
-    column.type_.set_collation_level(CS_LEVEL_IMPLICIT);
-    column.nullable_ = false;
-    if (OB_FAIL(table.columns_.push_back(column))) { ret = OB_ERR_UNEXPECTED; }
+    // glob 的列已在前面构造
   } else {
     ret = OB_NOT_SUPPORTED;
   }
-  if (OB_SUCC(ret) && format != FILE_SQL_FORMAT_GLOB) {
+  if (OB_SUCC(ret) && format != FILE_SQL_FORMAT_GLOB && !parquet_loaded) {
     infer_column_types(table);
     if (sample_only) { table.rows_.reuse(); }
   }

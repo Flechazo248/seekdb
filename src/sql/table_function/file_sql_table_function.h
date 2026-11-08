@@ -67,6 +67,7 @@ struct FileSqlTable
 };
 
 // 解析格式名(csv/json/parquet/glob)，失败返回 OB_ERR_PARSE_ERROR
+// 格式名为空时保留调用方选定的格式（由表函数语义决定）
 int file_sql_parse_format(const ObString &format_name, FileSqlFormat &format);
 
 // 解析 YYYY-MM-DD 文本，返回 OB 的日期内部表示（1970-01-01 起的天数）
@@ -76,6 +77,8 @@ int file_sql_parse_date(const ObString &value, int32_t &date_value);
 int file_sql_parse_datetime(const ObString &value, int64_t &datetime_value);
 
 // 读取文件并推断列结构（sample_only=true 时只取列，不取数据行）
+// CSV/JSONL 由文件内容推断列类型，PARQUET 由文件自带的 schema 决定列名与列类型，
+// parquet 的读取实现在 sql/table_function/file_sql_parquet.h 中。
 int file_sql_load(const ObString &path, FileSqlFormat format, bool sample_only,
                   common::ObIAllocator &allocator, FileSqlTable &table);
 

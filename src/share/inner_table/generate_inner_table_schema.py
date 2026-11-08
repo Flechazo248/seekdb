@@ -2561,7 +2561,12 @@ private:
 
   h_f.write("const schema_create_func sys_table_schema_creators [] = {\n")
   for (table_name, table_id) in new_table_name_postfix_ids:
-    if is_sys_table(table_id) and not is_core_table(table_id):
+    # CORE_INNER_SCHEMA_IN_SYS_LIST: keep __all_virtual_core_* tables in the
+    # system-table creator list so that they are created in the tenant schema
+    # (they used to live in virtual_table_schema_creators, which the
+    # schema-free table function cutover removed).
+    if (is_sys_table(table_id) and not is_core_table(table_id)) \
+        or table_name.startswith('__all_virtual_core_'):
       h_f.write(method_name.format(table_name.replace('$', '_').lower().strip('_'), table_name))
       sys_table_count = sys_table_count + 1
   h_f.write("  NULL,};\n\n")
