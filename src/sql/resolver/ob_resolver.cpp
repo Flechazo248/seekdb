@@ -437,6 +437,10 @@ int ObResolver::resolve(IsPrepared if_prepared, const ParseNode &parse_tree, ObS
         REGISTER_STMT_RESOLVER(Show);
         break;
       }
+      case T_DESCRIBE_SELECT: {
+        REGISTER_STMT_RESOLVER(DescribeSelect);
+        break;
+      }
       case T_CREATE_USER: {
         REGISTER_STMT_RESOLVER(CreateUser);
         break;
