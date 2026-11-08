@@ -3089,7 +3089,7 @@ int ObSelectResolver::resolve_into_copy(const ParseNode *node,
   ObCollationType cs_type = CS_TYPE_INVALID;
   if (OB_ISNULL(node) || 3 != node->num_child_) {
     ret = OB_ERR_UNEXPECTED;
-  } else if (OB_FAIL(session_info_->get_local_collation_connection(cs_type))) {
+  } else if (OB_FAIL(cs_type = session_info_->get_local_collation_connection())) {
   } else if (OB_FAIL(resolve_into_const_node(node->children_[0], into_item.outfile_name_))) {
   } else {
     // copy defaults: csv format, no header, ',' delimiter, '"' quote and 'NULL' null string

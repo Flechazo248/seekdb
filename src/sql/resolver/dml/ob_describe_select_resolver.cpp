@@ -166,7 +166,7 @@ int ObDescribeSelectResolver::resolve_describe_select(const ParseNode &select_no
   {
     ObResolverParams bind_params = params_;
     ObSelectResolver binder(bind_params);
-    if (OB_FAIL(binder.resolve(*select_node))) {
+    if (OB_FAIL(binder.resolve(select_node))) {
       LOG_WARN("failed to resolve the described select statement", K(ret));
     } else {
       ObSelectStmt *bound_stmt = binder.get_select_stmt();
