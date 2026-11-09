@@ -400,6 +400,7 @@ void infer_column_types(FileSqlTable &table)
     if (!has_value) {
       type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
+      type.set_length(262144);
     } else if (all_bool) {
       type.set_obj_type(ObTinyIntType);
       type.set_precision(1);
@@ -418,6 +419,7 @@ void infer_column_types(FileSqlTable &table)
     } else {
       type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);
+      type.set_length(262144);
     }
     table.columns_.at(c).type_ = type;
     table.columns_.at(c).nullable_ = nullable;
