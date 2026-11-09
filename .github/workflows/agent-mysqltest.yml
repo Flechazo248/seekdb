@@ -132,7 +132,15 @@ jobs:
           ls -la "$WORK" 2>/dev/null || true
           find "$WORK" -maxdepth 6 -type f \( -name "*.log" -o -name "*.out" -o -name "*.reject" \) 2>/dev/null | head -30
           echo "=== grep AI / error context ==="
-          grep -r -a -i -E "ai_function|ai_complete|ai_embed|Null value|NULL_VALUE|curl error|ollama" "$WORK" 2>/dev/null | tail -80 || true
+          grep -r -a -i -E "ai_function|ai_complete|ai_embed|Null value|NULL_VALUE|curl error|ollama|file_sql|read_csv|read_parquet|table function|table_function|OB_ERR_UNEXPECTED|LOG_ERROR" "$WORK" 2>/dev/null | tail -120 || true
+          echo "=== file_sql observer log ==="
+          for f in $(find "$WORK" -maxdepth 8 -type f -name "*.log" 2>/dev/null | head -20); do
+            if grep -a -q -i -E "file_sql|read_csv|table_function|OB_ERR_UNEXPECTED" "$f" 2>/dev/null; then
+              echo "--- $f ---"; tail -120 "$f";
+            fi
+          done
+          echo "=== observer log files ==="
+          find "$WORK" -maxdepth 8 -type f -name "*.log" 2>/dev/null | head -20
           echo "=== observer log tail ==="
           for f in $(find "$WORK" -maxdepth 6 -type f -name "*.log" 2>/dev/null | head -6); do
             echo "--- $f ---"
