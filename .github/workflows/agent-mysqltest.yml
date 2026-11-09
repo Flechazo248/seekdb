@@ -73,6 +73,14 @@ jobs:
             -d '{"model":"m","input":["x"]}' \
             http://127.0.0.1:8000/compatible-mode/v1/embeddings || true
 
+      - name: Prepare the mysqltest working tree
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # the mysqltest fixtures are addressed as mysql_test/test_suite/... 
+          # from the repository root, while the suite lives under tools/deploy/
+          ln -sfn tools/deploy/mysql_test mysql_test
+          ls -ld mysql_test
       - name: Trust the local host key for ssh
         shell: bash
         run: |
