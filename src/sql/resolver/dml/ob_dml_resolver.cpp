@@ -3623,10 +3623,12 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
     ret = OB_ERR_UNEXPECTED;
   } else {
     const ParseNode *path_node = call.arguments_->children_[0];
-    if (path_node->type_ != T_VARCHAR) {
+    if (path_node == nullptr || path_node->str_value_ == nullptr) {
       ret = OB_ERR_UNEXPECTED;
+      LOG_USER_ERROR(OB_ERR_UNEXPECTED, "file sql: path argument is not a string literal");
     } else {
       path.assign_ptr(path_node->str_value_, path_node->str_len_);
+      LOG_USER_ERROR(OB_SUCCESS, "file sql: path argument type is %d", path_node->type_);
     }
     for (int64_t i = 1; OB_SUCC(ret) && i < call.arguments_->num_child_; ++i) {
       const ParseNode *arg = call.arguments_->children_[i];
@@ -3674,11 +3676,15 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
       }
     }
     if (OB_SUCC(ret) && OB_FAIL(file_sql_parse_format(format_name, format))) {
+      LOG_USER_ERROR(OB_ERR_UNEXPECTED, "file sql: invalid format");
     } else if (OB_SUCC(ret)) {
       FileSqlTable table;
       if (OB_FAIL(file_sql_load(path, format, true, *allocator_, table))) {
+        LOG_USER_ERROR(OB_ERR_UNEXPECTED, "file sql: failed to load %s", path.ptr());
       } else {
-        OZ (create_function_scan_item(call, item));
+        if (OB_FAIL(create_function_scan_item(call, item))) {
+          LOG_USER_ERROR(OB_ERR_UNEXPECTED, "file sql: failed to create the scan item");
+        }
         for (int64_t i = 0; OB_SUCC(ret) && i < table.columns_.count(); ++i) {
           const FileSqlColumn &column = table.columns_.at(i);
           ColumnItem *bound = nullptr;
