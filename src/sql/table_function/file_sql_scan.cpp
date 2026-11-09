@@ -123,9 +123,11 @@ public:
       }
     } else if (OB_FAIL(file_sql_load(path, format_, false, context_.allocator_, table_))) {
     } else {
-      // 用绑定期推断出的列覆盖，保证列顺序与查询一致
+      // 扫描期产出的列由文件推断决定，与绑定期一致；查询的投影列数可能不同
+      // （例如 select count(*) 的投影列为 0），因此这里只告警不做强校验。
       if (OB_SUCC(ret) && table_.columns_.count() != expected_columns_) {
-        ret = OB_ERR_UNEXPECTED;
+        LOG_WARN("file sql column count differs from the projected column count",
+                 K(table_.columns_.count()), K(expected_columns_));
       }
     }
     if (OB_SUCC(ret)) { initialized_ = true; }
