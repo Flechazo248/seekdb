@@ -414,7 +414,7 @@ void infer_column_types(FileSqlTable &table)
       type.set_scale(0);
     } else if (all_num) {
       if (all_int) { type.set_obj_type(ObIntType); type.set_precision(20); type.set_scale(0); }
-      else { type.set_obj_type(ObDoubleType); }
+      else { type.set_obj_type(ObDoubleType); type.set_precision(22); type.set_scale(0); }
     } else {
       type.set_obj_type(ObVarcharType);
       type.set_collation_level(CS_LEVEL_IMPLICIT);

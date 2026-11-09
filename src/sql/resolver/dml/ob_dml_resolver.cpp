@@ -3682,8 +3682,11 @@ int ObDMLResolver::bind_file_sql_table_function(const TableFunctionCall &call, T
         for (int64_t i = 0; OB_SUCC(ret) && i < table.columns_.count(); ++i) {
           const FileSqlColumn &column = table.columns_.at(i);
           ColumnItem *bound = nullptr;
-          OZ (resolve_function_table_column_item(*item, column.type_.get_meta_type(),
-                column.type_.get_accuracy(), column.name_, OB_APP_MIN_COLUMN_ID + i, bound));
+          if (OB_FAIL(resolve_function_table_column_item(*item, column.type_.get_meta_type(),
+                                                  column.type_.get_accuracy(), column.name_,
+                                                  OB_APP_MIN_COLUMN_ID + i, bound))) {
+            LOG_USER_ERROR(OB_ERR_UNEXPECTED, "failed to resolve file sql column");
+          }
           if (OB_SUCC(ret) && !column.nullable_ && bound != nullptr && bound->expr_ != nullptr) {
             // 标记为非空列，DESCRIBE 时据此输出 null 列信息
             bound->expr_->set_result_flag(NOT_NULL_FLAG);
