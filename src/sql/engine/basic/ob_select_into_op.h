@@ -71,6 +71,9 @@ public:
       parallel_(1),
       buffer_size_(DEFAULT_BUFFER_SIZE),
       is_overwrite_(false),
+      is_header_(false),
+      null_str_(),
+      column_names_(alloc),
       external_properties_(alloc)
   {
   }
@@ -90,6 +93,12 @@ public:
   int64_t parallel_;
   int64_t buffer_size_;
   bool is_overwrite_;
+  // copy statement: write a header line with the output column names
+  bool is_header_;
+  // copy statement: the text written for a SQL NULL value
+  common::ObString null_str_;
+  // copy statement: the output column names, used by the header line
+  common::ObFixedArray<common::ObString, common::ObIAllocator> column_names_;
   ObExternalFileFormat::StringData external_properties_;
   static const int64_t DEFAULT_MAX_FILE_SIZE = 256LL * 1024 * 1024;
   static const int64_t DEFAULT_BUFFER_SIZE = 1LL * 1024 * 1024;
@@ -126,7 +135,11 @@ public:
       external_properties_(),
       format_type_(ObExternalFileFormat::FormatType::CSV_FORMAT),
       block_id_(0),
-      need_commit_(true)
+      need_commit_(true),
+      is_copy_(false),
+      header_written_(false),
+      copy_buf_(NULL),
+      copy_buf_len_(0)
   {
   }
 
@@ -256,6 +269,22 @@ private:
   int create_the_only_data_writer(ObExternalFileWriter *&data_writer);
   int new_data_writer(ObExternalFileWriter *&data_writer);
   int check_secure_file_path(ObString file_name);
+  // copy (query) to 'file' statement
+  int write_copy_header(ObExternalFileWriter *data_writer);
+  int print_copy_field(const ObObj &obj,
+                       const ObExpr *expr,
+                       const ObDatum *datum,
+                       ObCsvFileWriter &data_writer);
+  int get_copy_value_text(const ObObj &obj,
+                          const ObExpr *expr,
+                          const ObDatum *datum,
+                          ObSqlString &value_str,
+                          ObString &text);
+  int collect_text_tc_text(const ObExpr &expr, const ObDatum &datum, ObSqlString &sql_str);
+  int render_copy_text(const ObObj &obj, ObString &text);
+  int append_copy_text(ObSqlString &sql_str, const ObString &text);
+  int write_copy_text(const ObString &text, ObCsvFileWriter &data_writer);
+  bool copy_text_need_quote(const ObString &text) const;
   char *get_json_buf() { return json_buf_; }
   int64_t get_json_buf_len() { return json_buf_len_; }
   char *get_shared_buf() { return shared_buf_; }
@@ -292,7 +321,16 @@ private:
   ObExternalFileFormat::FormatType format_type_;
   uint32_t block_id_;
   bool need_commit_;
+  // copy (query) to 'file' statement: the rows are written with the csv rules
+  // of the copy statement instead of the select into outfile rules
+  bool is_copy_;
+  // the header line of the copy statement has been written
+  bool header_written_;
+  // the buffer used to render the text of a value
+  char *copy_buf_;
+  int64_t copy_buf_len_;
   static const int64_t SHARED_BUFFER_SIZE = 2LL * 1024 * 1024;
+  static const int64_t COPY_VALUE_BUFFER_SIZE = 4LL * 1024;
 
 };
 

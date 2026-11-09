@@ -44,6 +44,9 @@ public:
         escaped_cht_(),
         cs_type_(CS_TYPE_INVALID),
         is_overwrite_(false),
+        is_header_(false),
+        null_str_(),
+        column_names_(),
         external_properties_()
   {
   }
@@ -107,6 +110,34 @@ public:
   inline void set_external_properties(const common::ObString &external_properties)
   {
     external_properties_.assign_ptr(external_properties.ptr(), external_properties.length());
+  }
+  inline void set_is_header(bool is_header)
+  {
+    is_header_ = is_header;
+  }
+  inline void set_null_str(const common::ObString &null_str)
+  {
+    null_str_ = null_str;
+  }
+  inline void set_column_names(const common::ObIArray<common::ObString> &column_names)
+  {
+    for (int64_t i = 0 ; i < column_names.count() ; ++i) {
+      if (OB_SUCCESS != column_names_.push_back(column_names.at(i))) {
+        break;
+      }
+    }
+  }
+  inline bool get_is_header() const
+  {
+    return is_header_;
+  }
+  inline common::ObString get_null_str() const
+  {
+    return null_str_;
+  }
+  inline const common::ObIArray<common::ObString> &get_column_names() const
+  {
+    return column_names_;
   }
   inline ObItemType get_into_type() const
   {
@@ -187,6 +218,12 @@ private:
   common::ObObj escaped_cht_;
   common::ObCollationType cs_type_;
   bool is_overwrite_;
+  // copy statement: write a header line with the output column names
+  bool is_header_;
+  // copy statement: the text written for a SQL NULL value
+  common::ObString null_str_;
+  // copy statement: the output column names, used by the header line
+  common::ObSEArray<common::ObString, 16, common::ModulePageAllocator, true> column_names_;
   common::ObString external_properties_;
 };
 }

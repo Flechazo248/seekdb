@@ -128,6 +128,9 @@ struct ObSelectIntoItem
         max_file_size_(DEFAULT_MAX_FILE_SIZE),
         escaped_cht_(),
         buffer_size_(DEFAULT_BUFFER_SIZE),
+        is_header_(false),
+        null_str_(),
+        column_names_(),
         external_properties_()
   {
     field_str_.set_varchar(DEFAULT_FIELD_TERM_STR);
@@ -141,8 +144,10 @@ struct ObSelectIntoItem
     closed_cht_.set_char_value(NULL, 0);
     closed_cht_.set_collation_type(ObCharset::get_system_collation());
     cs_type_ = ObCharset::get_system_collation();
+    null_str_ = ObString::make_string(DEFAULT_NULL_STR);
   }
   int assign(const ObSelectIntoItem &other) {
+    int ret = OB_SUCCESS;
     into_type_ = other.into_type_;
     outfile_name_ = other.outfile_name_;
     field_str_ = other.field_str_;
@@ -154,8 +159,13 @@ struct ObSelectIntoItem
     escaped_cht_ = other.escaped_cht_;
     cs_type_ = other.cs_type_;
     buffer_size_ = other.buffer_size_;
+    is_header_ = other.is_header_;
+    null_str_ = other.null_str_;
     external_properties_ = other.external_properties_;
-    return user_vars_.assign(other.user_vars_);
+    if (OB_FAIL(column_names_.assign(other.column_names_))) {
+    } else if (OB_FAIL(user_vars_.assign(other.user_vars_))) {
+    }
+    return ret;
   }
   int deep_copy(ObIAllocator &allocator,
                 ObIRawExprCopier &copier,
@@ -171,6 +181,9 @@ struct ObSelectIntoItem
                K_(escaped_cht),
                K_(cs_type),
                K_(buffer_size),
+               K_(is_header),
+               K_(null_str),
+               K_(column_names),
                K_(external_properties));
   ObItemType into_type_;
   common::ObObj outfile_name_;
@@ -185,6 +198,12 @@ struct ObSelectIntoItem
   common::ObObj escaped_cht_;
   common::ObCollationType cs_type_;
   int64_t buffer_size_;
+  // copy statement: write a header line with the output column names
+  bool is_header_;
+  // copy statement: the text written for a SQL NULL value
+  common::ObString null_str_;
+  // copy statement: the output column names, used by the header line
+  common::ObSEArray<common::ObString, 16> column_names_;
   common::ObString external_properties_;
 
   static const char* const DEFAULT_FIELD_TERM_STR;
@@ -195,6 +214,7 @@ struct ObSelectIntoItem
   static const int64_t DEFAULT_MAX_FILE_SIZE;
   static const int64_t DEFAULT_BUFFER_SIZE;
   static const char DEFAULT_FIELD_ESCAPED_CHAR;
+  static const char* const DEFAULT_NULL_STR;
 };
 
 struct ObGroupbyExpr

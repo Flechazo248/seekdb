@@ -6816,6 +6816,21 @@ int ObLogPlan::allocate_select_into_as_top(ObLogicalOperator *&old_top)
     } else if (OB_FAIL(stmt->get_select_exprs(select_exprs))) {
     } else if (OB_FAIL(select_into->get_select_exprs().assign(select_exprs))) {
     }
+    if (OB_SUCC(ret) && 0 == into_item->column_names_.count()) {
+      // the column names of the header line of a copy statement can not be
+      // resolved before the target list of a set query is generated, fill
+      // them here
+      const common::ObIArray<SelectItem> &select_items = stmt->get_select_items();
+      for (int64_t i = 0; OB_SUCC(ret) && i < select_items.count(); ++i) {
+        const SelectItem &select_item = select_items.at(i);
+        ObString column_name = select_item.alias_name_.empty() ? select_item.expr_name_
+                                                               : select_item.alias_name_;
+        ObString copied_name;
+        if (OB_FAIL(ob_write_string(get_allocator(), column_name, copied_name))) {
+        } else if (OB_FAIL(into_item->column_names_.push_back(copied_name))) {
+        }
+      }
+    }
     if (OB_SUCC(ret)) {
       select_into->set_into_type(into_item->into_type_);
       select_into->set_outfile_name(into_item->outfile_name_);
@@ -6829,6 +6844,9 @@ int ObLogPlan::allocate_select_into_as_top(ObLogicalOperator *&old_top)
       select_into->set_buffer_size(into_item->buffer_size_);
       select_into->set_escaped_cht(into_item->escaped_cht_);
       select_into->set_cs_type(into_item->cs_type_);
+      select_into->set_is_header(into_item->is_header_);
+      select_into->set_null_str(into_item->null_str_);
+      select_into->set_column_names(into_item->column_names_);
       select_into->set_external_properties(into_item->external_properties_);
       select_into->set_child(ObLogicalOperator::first_child, old_top);
       // compute property

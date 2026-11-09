@@ -16,6 +16,7 @@
 
 #define USING_LOG_PREFIX SQL_RESV
 #include "sql/resolver/ob_resolver.h"
+#include "sql/resolver/dml/ob_describe_select_resolver.h"
 #include "lib/utility/ob_smart_call.h"
 #include "lib/stat/ob_diagnostic_info_guard.h"
 #include "sql/resolver/cmd/ob_alter_system_resolver.h"
@@ -398,6 +399,8 @@ int ObResolver::resolve(IsPrepared if_prepared, const ParseNode &parse_tree, ObS
         REGISTER_STMT_RESOLVER(SetTransaction);
         break;
       }
+      case T_SHOW_TABLE_FUNCTIONS:
+      case T_DESCRIBE_TABLE_FUNCTION:
       case T_SHOW_TABLES:
       case T_SHOW_DATABASES:
       case T_SHOW_VARIABLES:
@@ -432,6 +435,10 @@ int ObResolver::resolve(IsPrepared if_prepared, const ParseNode &parse_tree, ObS
       case T_SHOW_CHECK_TABLE:
       case T_SHOW_CREATE_USER: {
         REGISTER_STMT_RESOLVER(Show);
+        break;
+      }
+      case T_DESCRIBE_SELECT: {
+        REGISTER_STMT_RESOLVER(DescribeSelect);
         break;
       }
       case T_CREATE_USER: {
